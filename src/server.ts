@@ -128,10 +128,12 @@ const stopWorkers = [
 for (const signal of ['SIGINT', 'SIGTERM']) {
     process.on(signal, () => {
         stopWorkers.forEach((stop) => stop());
-        void photon.stop();
-        server.close(() => {
-            void store.close().finally(() => process.exit(0));
-        });
+        void (async () => {
+            await photon.stop();
+            await store.close();
+            server.closeAllConnections();
+            server.close(() => process.exit(0));
+        })().catch(() => process.exit(1));
         setTimeout(() => process.exit(0), 3000).unref();
     });
 }

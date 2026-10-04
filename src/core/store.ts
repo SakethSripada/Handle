@@ -8,6 +8,18 @@ import {
     type StateRecord,
 } from './state-record.js';
 
+const snapshot = Symbol('recordSnapshot');
+
+function decode<T>(data: string, kind: string): T {
+    const value = JSON.parse(data);
+
+    if (kind === 'case' && value && typeof value === 'object') {
+        value[snapshot] = data;
+    }
+
+    return value as T;
+}
+
 interface Transaction {
     changes: Map<string, StateChange>;
 }
@@ -65,7 +77,7 @@ export abstract class Store extends EventEmitter {
         const row =
             this.context.getStore()?.changes.get(key) ?? this.records.get(key);
 
-        return row && !row.deleted ? (JSON.parse(row.data) as T) : undefined;
+        return row && !row.deleted ? decode<T>(row.data, kind) : undefined;
     }
 
     list<T>(kind: string): T[] {
@@ -77,7 +89,7 @@ export abstract class Store extends EventEmitter {
 
         return [...rows.values()]
             .filter((row) => row.kind === kind && !row.deleted)
-            .map((row) => JSON.parse(row.data) as T);
+            .map((row) => decode<T>(row.data, kind));
     }
 
     async put<T>(kind: string, id: string, body: T) {
@@ -149,11 +161,50 @@ export abstract class Store extends EventEmitter {
     }
 
     async saveCase(c: Case) {
-        const saved = { ...c, updatedAt: Date.now() };
+        return this.transaction(async () => {
+            const current = this.case(c.id);
+            const original = (c as Case & { [snapshot]?: string })[snapshot];
+            const base = original ? (JSON.parse(original) as Case) : undefined;
+            let saved = { ...c };
 
-        await this.put('case', c.id, saved);
+            if (current && base?.id === c.id) {
+                // Preserve independently updated fields (for example a stop
+                // request arriving while a transcript is being fetched).
+                saved = { ...current };
 
-        return saved;
+                for (const key of Object.keys({
+                    ...base,
+                    ...c,
+                }) as (keyof Case)[]) {
+                    if (
+                        key === 'updatedAt' ||
+                        JSON.stringify(c[key]) === JSON.stringify(base[key])
+                    ) {
+                        continue;
+                    }
+
+                    if (
+                        JSON.stringify(current[key]) !==
+                            JSON.stringify(base[key]) &&
+                        JSON.stringify(current[key]) !== JSON.stringify(c[key])
+                    ) {
+                        throw new Error(
+                            'The case changed while this action was being prepared. Please retry.',
+                        );
+                    }
+
+                    Object.assign(saved, { [key]: c[key] });
+                }
+            }
+
+            saved.updatedAt = Math.max(
+                Date.now(),
+                (current?.updatedAt ?? 0) + 1,
+            );
+            await this.put('case', c.id, saved);
+
+            return this.case(c.id)!;
+        });
     }
 
     async event(

@@ -86,3 +86,37 @@ test('disconnection retains the last snapshot but blocks state changes', async (
     assert.equal(store.get('test', 'two'), undefined);
     store.close();
 });
+
+test('a stale call update preserves a concurrent stop and rejects conflicting edits', async () => {
+    const store = new LocalStore();
+    const initial = await store.saveCase({
+        id: 'concurrent',
+        owner: 'test',
+        spaceId: 'web:test',
+        title: 'Call',
+        status: 'in_call',
+        goal: 'Ask a question',
+        business: '',
+        phone: '',
+        customerName: '',
+        context: '',
+        authorization: 'Ask only',
+        createdAt: 1,
+        updatedAt: 1,
+    });
+
+    await store.saveCase({ ...initial, stopRequestedAt: 100 });
+    await store.saveCase({ ...initial, conversationId: 'conversation' });
+    assert.equal(store.case(initial.id)?.stopRequestedAt, 100);
+    assert.equal(store.case(initial.id)?.conversationId, 'conversation');
+
+    const before = store.case(initial.id)!;
+
+    await store.saveCase({ ...before, status: 'cancelled' });
+    await assert.rejects(
+        () => store.saveCase({ ...before, status: 'resolved' }),
+        /case changed/,
+    );
+    assert.equal(store.case(initial.id)?.status, 'cancelled');
+    store.close();
+});
