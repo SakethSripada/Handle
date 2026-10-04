@@ -15,7 +15,8 @@
     "setup:voice": "tsx --env-file=.env scripts/setup-voice.ts",
     "doctor": "tsx --env-file=.env scripts/doctor.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "setup:phone": "tsx --env-file=.env scripts/setup-phone.ts"
   },
   "dependencies": {
     "@elevenlabs/client": "^1.26.0",
