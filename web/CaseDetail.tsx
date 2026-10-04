@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Phone, Headphones } from 'lucide-react';
+import { CallMemory } from './CallMemory.js';
 import { Rehearsal } from './Rehearsal.js';
 import { request, statusLabels, type State, type Case } from './types.js';
 
@@ -153,6 +154,46 @@ export function CaseDetail({
                             <p>
                                 {c.authorization || 'No action authorized yet.'}
                             </p>
+                            {c.callMetrics && (
+                                <section>
+                                    <h4>Call performance</h4>
+                                    <p>
+                                        {c.mode === 'rehearsal'
+                                            ? 'Browser rehearsal'
+                                            : c.voiceProvider === 'photon'
+                                              ? 'Photon SIP'
+                                              : 'Twilio'}{' '}
+                                        · {c.callMetrics.durationSeconds ?? '—'}{' '}
+                                        seconds
+                                    </p>
+                                    {c.callMetrics.agentAudio && (
+                                        <p>
+                                            Agent audio after silence: median{' '}
+                                            {c.callMetrics.agentAudio.medianMs}{' '}
+                                            ms · p95{' '}
+                                            {c.callMetrics.agentAudio.p95Ms} ms
+                                            ({c.callMetrics.agentAudio.samples}{' '}
+                                            samples).
+                                        </p>
+                                    )}
+                                    {c.callMetrics.llmFirstToken && (
+                                        <p>
+                                            Model first token: median{' '}
+                                            {
+                                                c.callMetrics.llmFirstToken
+                                                    .medianMs
+                                            }{' '}
+                                            ms.
+                                        </p>
+                                    )}
+                                    <small>
+                                        ElevenLabs processing metrics. Phone
+                                        network and playback delay are not
+                                        measured here.
+                                    </small>
+                                </section>
+                            )}
+                            <CallMemory c={c} />
                         </div>
                     ) : (
                         <div className="timeline">
@@ -207,13 +248,16 @@ export function CaseDetail({
                     ) && (
                         <button
                             className="stop"
+                            disabled={busy || Boolean(c.stopRequestedAt)}
                             onClick={() =>
                                 void action(() =>
                                     request(`/cases/${c.id}/stop`, {}),
                                 )
                             }
                         >
-                            Stop this call
+                            {c.stopRequestedAt
+                                ? 'Stop requested · awaiting hangup'
+                                : 'Stop this call'}
                         </button>
                     )}
                 </>

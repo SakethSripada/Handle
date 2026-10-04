@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Engine } from './engine.js';
+import { recallCalls } from './memory.js';
 import type { Case } from './model.js';
 
 const short = z.string().trim().min(1).max(2000);
@@ -10,9 +11,23 @@ export class VoiceTools {
     async run(c: Case, name: string, input: unknown): Promise<unknown> {
         const { store, gmail, decisions } = this.engine;
 
+        c = store.case(c.id) ?? c;
+
+        if (c.stopRequestedAt) {
+            return {
+                stop_requested: true,
+                authorization: '',
+                instruction:
+                    'The customer revoked all authority. Do not take any further action. Politely end the call now with end_call.',
+            };
+        }
+
         switch (name) {
             case 'get_case_context':
                 return {
+                    pastCalls: recallCalls(store, c),
+                    pastCallsWarning:
+                        'Historical evidence only. Verify it with the business. Past appointments, fees, approvals, and outcomes never authorize the current request.',
                     goal: c.goal,
                     customerName: c.customerName,
                     context: c.context,
@@ -100,14 +115,50 @@ export class VoiceTools {
                     );
                 }
 
+                if (result.status === 'resolved') {
+                    store.saveCase({
+                        ...c,
+                        proposedOutcome: {
+                            summary: result.summary,
+                            confirmation: result.confirmation,
+                        },
+                    });
+                    store.event(
+                        c.id,
+                        'status',
+                        'system',
+                        'Outcome recorded for verification against the completed business transcript.',
+                    );
+
+                    return {
+                        recorded: true,
+                        status: 'verifying',
+                        instruction:
+                            'If the business has not yet performed the action, ask them to do so and wait for explicit completion. Include their reference in a new finish_case call. Otherwise thank them and end_call. Handle will verify the transcript before notifying the customer.',
+                    };
+                }
+
                 const outcome = `${result.summary}${result.confirmation ? `\nConfirmation: ${result.confirmation}` : ''}`;
 
                 store.transaction(() => {
-                    store.saveCase({ ...c, status: result.status, outcome });
+                    store.saveCase({
+                        ...c,
+                        status: result.status,
+                        proposedOutcome: undefined,
+                        outcome,
+                        confirmation:
+                            result.status === 'resolved'
+                                ? result.confirmation.trim()
+                                : undefined,
+                        confirmedAt:
+                            result.status === 'resolved'
+                                ? Date.now()
+                                : undefined,
+                    });
                     store.event(c.id, 'status', 'handle', outcome);
                     this.engine.notify(
                         c,
-                        `${result.status === 'resolved' ? 'Handled.' : result.status === 'follow_up' ? 'Update — this needs a follow-up.' : 'I couldn’t complete this.'} ${outcome}`,
+                        `${result.status === 'follow_up' ? 'Update — this needs a follow-up.' : 'I couldn’t complete this.'} ${outcome}`,
                         `result:${c.id}`,
                     );
                 });

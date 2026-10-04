@@ -1,3 +1,5 @@
+import type { CallMetrics } from './call-metrics.js';
+
 export const activeStatuses = [
     'gathering',
     'ready',
@@ -8,6 +10,7 @@ export const activeStatuses = [
 
 export type CaseStatus =
     | (typeof activeStatuses)[number]
+    | 'verifying'
     | 'resolved'
     | 'follow_up'
     | 'failed'
@@ -35,7 +38,12 @@ export interface Case {
     sipCallId?: string;
     stopRequestedAt?: number;
     callToken?: string;
+    proposedOutcome?: { summary: string; confirmation: string };
     outcome?: string;
+    confirmation?: string;
+    confirmedAt?: number;
+    memoryExcluded?: boolean;
+    callMetrics?: CallMetrics;
 }
 
 export interface CaseEvent {

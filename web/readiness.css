@@ -81,3 +81,21 @@
         display: none;
     }
 }
+
+.provider-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.provider-control select {
+    font: inherit;
+    padding: 8px 12px;
+    border: 1px solid #d8ddd6;
+    border-radius: 8px;
+    background: #fff;
+    color: inherit;
+}

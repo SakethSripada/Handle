@@ -44,7 +44,15 @@ export function rehearsal(engine: Engine) {
             callToken: token(),
             conversationId: undefined,
             callSid: undefined,
+            sipCallId: undefined,
+            voiceProvider: undefined,
+            stopRequestedAt: undefined,
             outcome: undefined,
+            proposedOutcome: undefined,
+            confirmation: undefined,
+            confirmedAt: undefined,
+            memoryExcluded: true,
+            callMetrics: undefined,
         });
 
         store.event(
@@ -108,7 +116,7 @@ export function rehearsal(engine: Engine) {
         ) {
             store.saveCase({
                 ...c,
-                status: 'follow_up',
+                status: c.proposedOutcome ? 'verifying' : 'follow_up',
                 callToken: undefined,
                 outcome:
                     'Browser rehearsal ended without a confirmed resolution.',

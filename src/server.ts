@@ -104,6 +104,16 @@ const server = app.listen(config.PORT, '127.0.0.1', (error?: Error) => {
     );
 });
 
+photon.lastInboundAt = store
+    .cases()
+    .filter((c) => !c.spaceId.startsWith('web:'))
+    .flatMap((c) => store.events(c.id))
+    .filter((event) => event.kind === 'message' && event.actor === 'user')
+    .reduce<number | undefined>(
+        (latest, event) => Math.max(latest ?? 0, event.at),
+        undefined,
+    );
+
 void photon
     .connect((input) => engine.accept(input))
     .catch((error) => {

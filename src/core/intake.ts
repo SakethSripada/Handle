@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { CallMemory } from './memory.js';
 import type { Case, CaseEvent, IntakePlan } from './model.js';
 
 export const planSchema = z.object({
@@ -32,10 +33,12 @@ export async function planIntake(
     c: Case,
     events: CaseEvent[],
     evidence: unknown[] = [],
+    pastCalls: CallMemory[] = [],
 ): Promise<IntakePlan> {
     const answer = await textAgent(
         JSON.stringify({
             emailEvidence: evidence,
+            pastCalls,
             existingCase: {
                 goal: c.goal,
                 business: c.business,

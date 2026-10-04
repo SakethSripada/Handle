@@ -4,6 +4,7 @@ import type { ConnectionCheck } from '../src/core/readiness.js';
 import './readiness.css';
 
 interface ReadinessState {
+    voiceProvider: 'twilio' | 'photon';
     checkedAt: number;
     canEnableCalling: boolean;
     callingEnabled: boolean;
@@ -44,6 +45,19 @@ export function Readiness() {
         }
     }
 
+    async function selectProvider(provider: string) {
+        setBusy(true);
+        setError('');
+
+        try {
+            await request('/settings/voice-provider', { provider });
+            await refresh();
+        } catch (error) {
+            setError((error as Error).message);
+            setBusy(false);
+        }
+    }
+
     return (
         <div className="connection-card readiness">
             <div className="readiness-heading">
@@ -59,6 +73,20 @@ export function Readiness() {
                     {busy ? 'Checking…' : 'Check connections'}
                 </button>
             </div>
+            <label className="provider-control">
+                Voice provider
+                <select
+                    aria-label="Voice provider"
+                    value={state?.voiceProvider ?? 'twilio'}
+                    disabled={busy || !state || state.callingEnabled}
+                    onChange={(event) =>
+                        void selectProvider(event.target.value)
+                    }
+                >
+                    <option value="twilio">Twilio</option>
+                    <option value="photon">Photon SIP</option>
+                </select>
+            </label>
             {state?.checks.map((check) => (
                 <div
                     className="readiness-row"

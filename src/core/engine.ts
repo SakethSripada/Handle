@@ -3,6 +3,7 @@ import type { Config } from '../config.js';
 import type { Case, Incoming, Messenger } from './model.js';
 import { Store } from './store.js';
 import { token } from './crypto.js';
+import { recallCalls } from './memory.js';
 import { planIntake } from './intake.js';
 import { Decisions } from './decisions.js';
 import { ElevenLabs } from '../providers/elevenlabs.js';
@@ -112,6 +113,7 @@ export class Engine {
                     c.spaceId === input.spaceId &&
                     c.mode !== 'rehearsal' &&
                     [
+                        'verifying',
                         'gathering',
                         'ready',
                         'dialing',
@@ -210,6 +212,15 @@ export class Engine {
             return;
         }
 
+        if (c.status === 'verifying') {
+            this.notify(
+                c,
+                'The call has ended. I’m checking the business’s confirmation before reporting the result.',
+            );
+
+            return;
+        }
+
         if (['dialing', 'in_call', 'waiting_approval'].includes(c.status)) {
             c.context += `\nCustomer update: ${input.text}`;
             this.store.saveCase(c);
@@ -222,6 +233,8 @@ export class Engine {
             (p) => this.voice.text(p),
             c,
             this.store.events(c.id),
+            [],
+            recallCalls(this.store, c),
         );
 
         if (
@@ -254,6 +267,7 @@ export class Engine {
                         { ...c, ...plan },
                         this.store.events(c.id),
                         emails,
+                        recallCalls(this.store, { ...c, ...plan }),
                     );
                 }
             } catch {
@@ -382,6 +396,25 @@ export class Engine {
             throw new Error('Case not found.');
         }
 
+        if (
+            c.voiceProvider === 'photon' &&
+            ['dialing', 'in_call', 'waiting_approval'].includes(c.status)
+        ) {
+            this.store.saveCase({ ...c, stopRequestedAt: Date.now() });
+            this.store.event(
+                c.id,
+                'status',
+                'system',
+                'Stop requested. Authority revoked; waiting for the voice agent to end the SIP call.',
+            );
+            this.notify(
+                c,
+                'Stop requested. The agent will end the call when it next checks in. Hangup is not confirmed yet.',
+            );
+
+            return;
+        }
+
         if (c.callSid) {
             if (!this.config.TWILIO_AUTH_TOKEN) {
                 throw new Error(
@@ -397,7 +430,7 @@ export class Engine {
                 .update({ status: 'completed' });
         } else if (c.status === 'dialing') {
             throw new Error(
-                'The provider has not returned a call ID yet. Check Twilio before stopping.',
+                'The provider has not returned a call ID yet. Check the voice provider before stopping.',
             );
         }
 

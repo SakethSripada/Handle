@@ -17,7 +17,8 @@
     "format": "eslint . --fix && stylelint \"web/**/*.css\" --fix && prettier --write .",
     "format:check": "prettier --check .",
     "setup:phone": "tsx --env-file=.env scripts/setup-phone.ts",
-    "lint": "eslint . && stylelint \"web/**/*.css\""
+    "lint": "eslint . && stylelint \"web/**/*.css\"",
+    "setup:photon": "tsx --env-file=.env scripts/setup-photon-voice.ts"
   },
   "dependencies": {
     "@elevenlabs/client": "^1.26.0",

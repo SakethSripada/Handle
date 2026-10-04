@@ -1,8 +1,31 @@
+import { setTimeout as delay } from 'node:timers/promises';
+import { verifyOutcome } from './outcome-verification.js';
+import { callMetrics } from './call-metrics.js';
 import type { Engine } from './engine.js';
 import type { Conversation } from '../providers/elevenlabs.js';
 
 export class CallMonitor {
+    private verifying = new Set<string>();
     constructor(private engine: Engine) {}
+
+    private async verifyText(prompt: string) {
+        try {
+            return await this.engine.voice.text(
+                prompt,
+                this.engine.config.ELEVENLABS_VERIFIER_AGENT_ID,
+                20000,
+            );
+        } catch {
+            // A finished voice session may still occupy the provider's concurrency slot.
+            await delay(1500);
+
+            return this.engine.voice.text(
+                prompt,
+                this.engine.config.ELEVENLABS_VERIFIER_AGENT_ID,
+                20000,
+            );
+        }
+    }
 
     async poll() {
         for (const c of this.engine.store
@@ -13,7 +36,7 @@ export class CallMonitor {
                     !this.engine.store.get('call-finalized', c.conversationId),
             )) {
             try {
-                this.apply(
+                await this.apply(
                     c.id,
                     await this.engine.voice.conversation(c.conversationId!),
                 );
@@ -26,7 +49,7 @@ export class CallMonitor {
         }
     }
 
-    apply(id: string, data: Conversation) {
+    async apply(id: string, data: Conversation) {
         const { store } = this.engine;
         const c = store.case(id);
 
@@ -63,29 +86,130 @@ export class CallMonitor {
             store.saveCase({ ...c, status: 'in_call' });
         }
 
-        if (['done', 'failed'].includes(data.status)) {
-            store.put('call-finalized', data.conversation_id, true);
-            store.saveCase({ ...c, callToken: undefined });
+        if (
+            !['done', 'failed'].includes(data.status) ||
+            this.verifying.has(id) ||
+            store.get('call-finalized', data.conversation_id)
+        ) {
+            return;
         }
 
+        c.callMetrics = callMetrics(data);
+        store.saveCase({ ...c, callToken: undefined });
+
         if (
-            ['done', 'failed'].includes(data.status) &&
-            ['dialing', 'in_call', 'waiting_approval'].includes(c.status)
+            c.proposedOutcome &&
+            data.status === 'done' &&
+            !c.stopRequestedAt &&
+            c.status !== 'cancelled'
         ) {
-            // Post-call analysis is evidence, not proof that the user's requested action succeeded.
+            this.verifying.add(id);
+            store.saveCase({ ...c, status: 'verifying', callToken: undefined });
+
+            try {
+                if (!this.engine.config.ELEVENLABS_VERIFIER_AGENT_ID) {
+                    throw new Error('Outcome verifier is not configured.');
+                }
+
+                const verdict = await verifyOutcome(
+                    (prompt) => this.verifyText(prompt),
+                    c,
+                    data.transcript ?? [],
+                    store.approvals(c.id),
+                );
+                const latest = store.case(id)!;
+
+                if (latest.status === 'cancelled') {
+                    return;
+                }
+
+                const pending = store
+                    .approvals(c.id)
+                    .some((a) => a.status === 'pending');
+                const resolved =
+                    verdict.resolved && !pending && !latest.stopRequestedAt;
+                const outcome = resolved
+                    ? `${verdict.summary}\nConfirmation: ${verdict.confirmation}`
+                    : `No verified resolution. ${verdict.reason}`;
+
+                store.saveCase({
+                    ...latest,
+                    status: latest.stopRequestedAt
+                        ? 'cancelled'
+                        : resolved
+                          ? 'resolved'
+                          : 'follow_up',
+                    outcome,
+                    confirmation: resolved ? verdict.confirmation : undefined,
+                    confirmedAt: resolved ? Date.now() : undefined,
+                    callToken: undefined,
+                });
+                store.event(c.id, 'status', 'system', outcome);
+                this.engine.notify(
+                    c,
+                    `${resolved ? 'Handled.' : 'The call ended; this needs a follow-up.'} ${outcome}`,
+                    `result:${c.id}`,
+                );
+            } catch (error) {
+                store.event(
+                    id,
+                    'error',
+                    'system',
+                    `Outcome verification unavailable: ${(error as Error).message}`,
+                );
+
+                if (store.case(id)?.status === 'cancelled') {
+                    return;
+                }
+
+                store.saveCase({
+                    ...store.case(id)!,
+                    status: 'follow_up',
+                    callToken: undefined,
+                    outcome:
+                        'The call ended, but its outcome could not be verified. Review the transcript before taking further action.',
+                });
+                this.engine.notify(
+                    c,
+                    'The call ended, but I couldn’t verify its outcome. I won’t claim it was resolved or call again automatically.',
+                    `result:${c.id}`,
+                );
+            } finally {
+                this.verifying.delete(id);
+                store.put('call-finalized', data.conversation_id, true);
+            }
+
+            return;
+        }
+
+        store.put('call-finalized', data.conversation_id, true);
+
+        if (
+            ['dialing', 'in_call', 'waiting_approval', 'verifying'].includes(
+                c.status,
+            )
+        ) {
             const summary =
                 data.analysis?.transcript_summary ??
                 'The call ended without a confirmed outcome.';
 
             store.saveCase({
                 ...c,
-                status: data.status === 'failed' ? 'failed' : 'follow_up',
-                outcome: summary,
+                status: c.stopRequestedAt
+                    ? 'cancelled'
+                    : data.status === 'failed'
+                      ? 'failed'
+                      : 'follow_up',
+                outcome: c.stopRequestedAt
+                    ? 'The call ended after your stop request.'
+                    : summary,
                 callToken: undefined,
             });
             this.engine.notify(
                 c,
-                `The call ended. ${summary}\nI don’t have a confirmed resolution yet.`,
+                c.stopRequestedAt
+                    ? 'The call has ended. Your stop request is confirmed.'
+                    : `The call ended. ${summary}\nI don’t have a confirmed resolution yet.`,
                 `result:${c.id}`,
             );
         }

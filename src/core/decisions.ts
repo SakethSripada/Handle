@@ -9,6 +9,10 @@ export class Decisions {
     ) {}
 
     request(c: Case, question: string): Approval {
+        if (this.store.case(c.id)?.stopRequestedAt) {
+            throw new Error('The customer has requested this call stop.');
+        }
+
         const pending = this.store
             .approvals(c.id)
             .find((a) => a.status === 'pending' && a.expiresAt > Date.now());
@@ -73,7 +77,10 @@ export class Decisions {
             throw new Error('That decision does not belong to you.');
         }
 
-        if (!['in_call', 'waiting_approval', 'dialing'].includes(c.status)) {
+        if (
+            c.stopRequestedAt ||
+            !['in_call', 'waiting_approval', 'dialing'].includes(c.status)
+        ) {
             throw new Error(
                 'This call has ended; that decision can no longer authorize an action.',
             );

@@ -14,7 +14,7 @@ export function callbacks(engine: Engine, monitor: CallMonitor) {
     router.post(
         '/webhooks/elevenlabs',
         raw({ type: 'application/json', limit: '2mb' }),
-        (req, res) => {
+        async (req, res) => {
             if (
                 !verifyElevenSignature(
                     req.body,
@@ -37,7 +37,7 @@ export function callbacks(engine: Engine, monitor: CallMonitor) {
                     );
 
                 if (c) {
-                    monitor.apply(c.id, event.data);
+                    await monitor.apply(c.id, event.data);
                 }
             }
 

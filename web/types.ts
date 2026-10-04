@@ -7,6 +7,11 @@ export interface State {
     events: CaseEvent[];
     approvals: Approval[];
     owner: string;
+    queues?: {
+        messages: { pending: number; retrying: number };
+        replication: { pending: number; retrying: number };
+        incoming: number;
+    };
     services: {
         photon: string;
         voice: string;
@@ -24,6 +29,7 @@ export const statusLabels: Record<string, string> = {
     dialing: 'Dialing',
     in_call: 'On the line',
     waiting_approval: 'Your decision',
+    verifying: 'Verifying outcome',
     resolved: 'Handled',
     follow_up: 'Follow-up needed',
     failed: 'Needs attention',

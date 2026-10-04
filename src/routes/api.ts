@@ -6,6 +6,8 @@ import type { Engine } from '../core/engine.js';
 import type { Photon } from '../providers/photon.js';
 import type { Spacetime } from '../providers/spacetime.js';
 import { checkReadiness } from '../core/readiness.js';
+import { auditStorage } from '../core/storage-audit.js';
+import { recallCalls } from '../core/memory.js';
 import { voiceNumberId } from '../providers/voice-routing.js';
 import { auth } from './auth.js';
 
@@ -21,6 +23,7 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
         events: store.list<CaseEvent>('event').sort((a, b) => a.at - b.at),
         approvals: store.list('approval'),
         owner: owner(),
+        queues: store.queueStatus(),
         services: {
             photon: photon.status,
             photonLastInboundAt: photon.lastInboundAt,
@@ -44,6 +47,9 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
 
     router.get('/readiness', async (_req, res) =>
         res.json(await checkReadiness(engine, photon)),
+    );
+    router.get('/storage-audit', async (_req, res) =>
+        res.json(await auditStorage(config, store)),
     );
     router.get('/state', (_req, res) => res.json(snapshot()));
     router.get('/events', (req, res) => {
@@ -106,6 +112,33 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
         });
 
         res.status(201).json({ id: c.id });
+    });
+    router.get('/cases/:id/memory', (req, res) => {
+        const c = store.case(String(req.params.id));
+
+        if (!c) {
+            res.sendStatus(404);
+
+            return;
+        }
+
+        res.json({ memories: recallCalls(store, c) });
+    });
+    router.post('/cases/:id/memory', (req, res) => {
+        const c = store.case(String(req.params.id));
+
+        if (!c) {
+            res.sendStatus(404);
+
+            return;
+        }
+
+        const { excluded } = z
+            .object({ excluded: z.boolean() })
+            .parse(req.body);
+
+        store.saveCase({ ...c, memoryExcluded: excluded });
+        res.json({ excluded });
     });
     router.post('/cases/:id/start', async (req, res) => {
         await engine.start(String(req.params.id));

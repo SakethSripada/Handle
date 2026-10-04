@@ -7,6 +7,7 @@ import type { Case, CaseEvent, Approval } from './model.js';
 
 export class Store extends EventEmitter {
     readonly db: DatabaseSync;
+    private changeQueued = false;
 
     constructor(path = '.data/handle.sqlite') {
         super();
@@ -21,6 +22,16 @@ export class Store extends EventEmitter {
       CREATE TABLE IF NOT EXISTS inbox (id TEXT PRIMARY KEY, body TEXT NOT NULL, done INTEGER DEFAULT 0);
       CREATE TABLE IF NOT EXISTS outbox (id TEXT PRIMARY KEY, kind TEXT, body TEXT, attempts INTEGER DEFAULT 0, next_at INTEGER DEFAULT 0);
     `);
+    }
+
+    private changed() {
+        if (!this.changeQueued) {
+            this.changeQueued = true;
+            queueMicrotask(() => {
+                this.changeQueued = false;
+                this.emit('change');
+            });
+        }
     }
 
     get<T>(kind: string, id: string): T | undefined {
@@ -45,13 +56,14 @@ export class Store extends EventEmitter {
                 'INSERT INTO records VALUES (?,?,?) ON CONFLICT(kind,id) DO UPDATE SET body=excluded.body',
             )
             .run(kind, id, JSON.stringify(body));
-        this.emit('change');
+        this.changed();
     }
 
     remove(kind: string, id: string) {
         this.db
             .prepare('DELETE FROM records WHERE kind=? AND id=?')
             .run(kind, id);
+        this.changed();
     }
 
     transaction<T>(fn: () => T): T {
@@ -144,6 +156,27 @@ export class Store extends EventEmitter {
                 'INSERT INTO outbox (id,kind,body) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body',
             )
             .run(id, kind, JSON.stringify(body));
+        this.changed();
+    }
+
+    queueStatus() {
+        const counts = this.db
+            .prepare(
+                'SELECT kind, COUNT(*) AS pending, SUM(CASE WHEN attempts > 0 THEN 1 ELSE 0 END) AS retrying FROM outbox GROUP BY kind',
+            )
+            .all() as { kind: string; pending: number; retrying: number }[];
+
+        return {
+            messages: counts.find((row) => row.kind === 'message') ?? {
+                pending: 0,
+                retrying: 0,
+            },
+            replication: counts.find((row) => row.kind === 'replicate') ?? {
+                pending: 0,
+                retrying: 0,
+            },
+            incoming: this.pendingInbox().length,
+        };
     }
 
     jobs(kind: string) {
@@ -160,6 +193,8 @@ export class Store extends EventEmitter {
     }
 
     finishJob(id: string, body?: string) {
+        this.changed();
+
         if (body) {
             this.db
                 .prepare('DELETE FROM outbox WHERE id=? AND body=?')
@@ -170,6 +205,7 @@ export class Store extends EventEmitter {
     }
 
     retryJob(id: string, attempts: number) {
+        this.changed();
         this.db
             .prepare(
                 'UPDATE outbox SET attempts=attempts+1,next_at=? WHERE id=?',
