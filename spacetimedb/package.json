@@ -1,0 +1,9 @@
+{
+  "name": "handle-state",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "spacetimedb": "2.10.2"
+  }
+}
