@@ -109,6 +109,31 @@ export class Engine {
                         'waiting_approval',
                     ].includes(c.status),
             );
+
+        if (input.caseId) {
+            const selected = this.store.case(input.caseId);
+
+            if (!selected || selected.owner !== input.owner) {
+                throw new Error('Case does not belong to this sender.');
+            }
+
+            c = selected;
+
+            if (
+                ['resolved', 'failed', 'cancelled', 'follow_up'].includes(
+                    c.status,
+                ) &&
+                !/^status|^connect|^(yes|no) /i.test(input.text)
+            ) {
+                this.notify(
+                    c,
+                    'This request is closed. Start a new request for another action.',
+                );
+
+                return;
+            }
+        }
+
         const previousEvent = this.store.get<{ caseId: string }>(
             'event',
             `in:${input.id}`,

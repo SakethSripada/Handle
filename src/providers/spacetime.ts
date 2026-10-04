@@ -10,7 +10,11 @@ export class Spacetime {
     constructor(
         private config: Config,
         private store: Store,
-    ) {}
+    ) {
+        if (config.SPACETIMEDB_TOKEN && config.SPACETIMEDB_DATABASE) {
+            this.status = 'configured';
+        }
+    }
 
     async flush() {
         if (

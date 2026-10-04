@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Conversation } from '@elevenlabs/client';
+import type { Conversation } from '@elevenlabs/client';
 import { Mic, Square } from 'lucide-react';
 import { request } from './types.js';
 
@@ -49,6 +49,8 @@ export function Rehearsal({
                     event,
                 ).catch((error) => onError(error.message));
             };
+
+            const { Conversation } = await import('@elevenlabs/client');
 
             session.current = await Conversation.startSession({
                 signedUrl: data.signedUrl,

@@ -55,6 +55,7 @@ export interface Approval {
 }
 
 export interface Incoming {
+    caseId?: string;
     mode?: 'rehearsal';
     id: string;
     owner: string;

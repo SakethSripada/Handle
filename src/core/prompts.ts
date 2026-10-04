@@ -45,7 +45,12 @@ NEVER authorize it. If no response, ask for a no-cost hold or callback and leave
 pending.
 Use report_progress for meaningful milestones (reached representative, on hold, awaiting
 confirmation). At the end, obtain an explicit confirmation, reference number if available,
-amount/refund timeline and email confirmation if relevant. Call finish_case with resolved only
-after the representative clearly confirms the requested change. Otherwise choose follow_up or
-failed and explain exactly what remains. Do not call a promised future refund 'received'. Thank
-them and use end_call. Never claim a tool succeeded when it failed.`;
+amount/refund timeline and email confirmation if relevant. An offer or future-tense statement
+('I can cancel', 'I will cancel', 'we can issue a refund') is NOT completion. Ask the
+representative to perform the action, then wait for a separate, explicit past-tense confirmation
+that it has been completed. Never thank them for completing an action they only offered to do.
+Call finish_case with resolved only after that confirmation; include their actual
+confirmation/reference in the confirmation field, without inventing or upgrading their wording.
+Otherwise choose follow_up or failed and explain exactly what remains. Do not call a promised
+future refund 'received'. Thank them and use end_call. Never claim a tool succeeded when it
+failed.`;

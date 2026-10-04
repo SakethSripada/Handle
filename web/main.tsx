@@ -19,12 +19,13 @@ import {
 } from 'lucide-react';
 import { request, statusLabels, type State, type Case } from './types.js';
 import './style.css';
-import { Rehearsal } from './Rehearsal.js';
+import { CaseDetail } from './CaseDetail.js';
+import { Chat } from './Chat.js';
+import { Connections } from './Connections.js';
 
 function App() {
     const [state, setState] = useState<State>();
     const [selected, setSelected] = useState<string>();
-    const [tab, setTab] = useState('activity');
     const [locked, setLocked] = useState(false);
     const [key, setKey] = useState('');
     const [draft, setDraft] = useState('');
@@ -32,10 +33,6 @@ function App() {
     const [error, setError] = useState('');
     const [connected, setConnected] = useState(false);
     const [view, setView] = useState('cases');
-    const [search, setSearch] = useState('');
-    const [emails, setEmails] = useState<
-        { subject: string; from: string; body: string; url: string }[]
-    >([]);
 
     useEffect(() => {
         let source: EventSource;
@@ -77,7 +74,7 @@ function App() {
             return;
         }
 
-        await request('/messages', { text });
+        await request('/messages', { text, caseId: c?.id });
         setDraft('');
     }
 
@@ -136,13 +133,6 @@ function App() {
         ['dialing', 'in_call', 'waiting_approval'].includes(c.status),
     ).length;
     const done = state.cases.filter((c) => c.status === 'resolved').length;
-    const timeline = state.events.filter(
-        (e) =>
-            e.caseId === c?.id &&
-            (tab === 'transcript'
-                ? e.kind === 'transcript'
-                : e.kind !== 'transcript' && e.kind !== 'message'),
-    );
     const messages = state.events.filter(
         (e) => e.caseId === c?.id && e.kind === 'message',
     );
@@ -221,12 +211,19 @@ function App() {
                     </div>
                     <button
                         className="new-request"
-                        onClick={() => {
-                            setView('cases');
-                            document
-                                .querySelector<HTMLTextAreaElement>('textarea')
-                                ?.focus();
-                        }}
+                        onClick={() =>
+                            void action(async () => {
+                                const result = await request<{ id: string }>(
+                                    '/cases/new',
+                                    {},
+                                );
+
+                                setSelected(result.id);
+                                setView('cases');
+                                setDraft('');
+                                setState(await request<State>('/state'));
+                            })
+                        }
                     >
                         <Plus size={17} /> New request
                     </button>
@@ -246,128 +243,13 @@ function App() {
                     </div>
                 )}
                 {view === 'connections' ? (
-                    <section className="connections">
-                        <div className="connection-card">
-                            <Mail size={30} />
-                            <h2>Gmail</h2>
-                            <p>
-                                Find the reservation. Pull up the receipt. Check
-                                the confirmation.
-                            </p>
-                            <span className="tag">
-                                {state.services.gmail.replaceAll('_', ' ')}
-                            </span>
-                            <button
-                                className="primary"
-                                disabled={
-                                    busy ||
-                                    state.services.gmail === 'not_configured'
-                                }
-                                onClick={() =>
-                                    void action(
-                                        state.services.gmail === 'connected'
-                                            ? async () => {
-                                                  await request(
-                                                      '/gmail/disconnect',
-                                                      {},
-                                                  );
-                                                  setState(
-                                                      await request<State>(
-                                                          '/state',
-                                                      ),
-                                                  );
-                                              }
-                                            : gmail,
-                                    )
-                                }
-                            >
-                                {state.services.gmail === 'connected'
-                                    ? 'Disconnect Gmail'
-                                    : 'Connect Gmail'}
-                                <ArrowUpRight size={17} />
-                            </button>
-                            <small>
-                                Read-only access. You’re always in control.
-                            </small>
-                        </div>
-                        <div className="connection-card">
-                            <Radio size={30} />
-                            <h2>The service desk</h2>
-                            <p>A clear view of what’s connected and ready.</p>
-                            {[
-                                ['iMessage', state.services.photon],
-                                ['Voice agent', state.services.voice],
-                                ['Text planner', state.services.intake],
-                                ['SpacetimeDB', state.services.spacetime],
-                                [
-                                    'Phone calling',
-                                    state.services.calling
-                                        ? 'enabled'
-                                        : 'paused',
-                                ],
-                            ].map(([name, status]) => (
-                                <div
-                                    className="service"
-                                    key={name}
-                                >
-                                    <span>{name}</span>
-                                    <span className="tag">
-                                        {status.replaceAll('_', ' ')}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                        {state.services.gmail === 'connected' && (
-                            <div className="mail-search">
-                                <h2>Find a confirmation</h2>
-                                <form
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        void action(async () =>
-                                            setEmails(
-                                                (
-                                                    await request<{
-                                                        emails: typeof emails;
-                                                    }>('/gmail/search', {
-                                                        query: search,
-                                                    })
-                                                ).emails,
-                                            ),
-                                        );
-                                    }}
-                                >
-                                    <input
-                                        aria-label="Search Gmail"
-                                        placeholder="Business, reservation, or order number"
-                                        value={search}
-                                        onChange={(e) =>
-                                            setSearch(e.target.value)
-                                        }
-                                    />
-                                    <button
-                                        className="primary"
-                                        disabled={busy}
-                                    >
-                                        Search
-                                    </button>
-                                </form>
-                                {emails.map((email, i) => (
-                                    <article key={i}>
-                                        <a
-                                            href={email.url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                        >
-                                            {email.subject}
-                                            <ArrowUpRight size={14} />
-                                        </a>
-                                        <small>{email.from}</small>
-                                        <p>{email.body.slice(0, 600)}</p>
-                                    </article>
-                                ))}
-                            </div>
-                        )}
-                    </section>
+                    <Connections
+                        state={state}
+                        busy={busy}
+                        action={action}
+                        gmail={gmail}
+                        setState={setState}
+                    />
                 ) : (
                     <>
                         <section className="stats">
@@ -432,7 +314,6 @@ function App() {
                                             key={item.id}
                                             onClick={() => {
                                                 setSelected(item.id);
-                                                setTab('activity');
                                             }}
                                             className={`request-row ${item.id === c?.id ? 'selected' : ''}`}
                                         >
@@ -470,364 +351,24 @@ function App() {
                                     </p>
                                 </div>
                             </section>
-                            <section className="detail-panel">
-                                {c ? (
-                                    <>
-                                        <div className="detail-top">
-                                            <span
-                                                className={`status ${c.status}`}
-                                            >
-                                                <span className="dot" />
-                                                {statusLabels[c.status]}
-                                            </span>
-                                            <span className="case-ref">
-                                                #
-                                                {c.id.slice(0, 6).toUpperCase()}
-                                            </span>
-                                        </div>
-                                        <h2>{c.title}</h2>
-                                        <p className="goal">
-                                            {c.goal ||
-                                                'Tell Handle what you need help with.'}
-                                        </p>
-                                        <div className="case-facts">
-                                            <div>
-                                                <small>BUSINESS</small>
-                                                <span>
-                                                    {c.business ||
-                                                        'Not provided yet'}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <small>CALLING FOR</small>
-                                                <span>
-                                                    {c.customerName ||
-                                                        'Not provided yet'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        {c.outcome && (
-                                            <div className="outcome">
-                                                <Check size={19} />
-                                                <p>{c.outcome}</p>
-                                            </div>
-                                        )}
-                                        {c.status === 'ready' && (
-                                            <div className="ready-banner">
-                                                <Phone size={18} />
-                                                <span>
-                                                    {state.services.calling
-                                                        ? 'Everything is ready.'
-                                                        : 'Request ready. Phone calling is paused.'}
-                                                </span>
-                                                <button
-                                                    disabled={
-                                                        !state.services
-                                                            .calling || busy
-                                                    }
-                                                    onClick={() =>
-                                                        void action(() =>
-                                                            request(
-                                                                `/cases/${c.id}/start`,
-                                                                {},
-                                                            ),
-                                                        )
-                                                    }
-                                                >
-                                                    Start call
-                                                </button>
-                                            </div>
-                                        )}
-                                        {state.approvals
-                                            .filter(
-                                                (a) =>
-                                                    a.caseId === c.id &&
-                                                    a.status === 'pending' &&
-                                                    a.expiresAt > Date.now(),
-                                            )
-                                            .map((a) => (
-                                                <div
-                                                    className="decision"
-                                                    key={a.id}
-                                                >
-                                                    <small>
-                                                        ONE DECISION FOR YOU
-                                                    </small>
-                                                    <p>{a.question}</p>
-                                                    <div>
-                                                        <button
-                                                            onClick={() =>
-                                                                void action(
-                                                                    () =>
-                                                                        send(
-                                                                            `YES ${a.id}`,
-                                                                        ),
-                                                                )
-                                                            }
-                                                        >
-                                                            Approve
-                                                        </button>
-                                                        <button
-                                                            onClick={() =>
-                                                                void action(
-                                                                    () =>
-                                                                        send(
-                                                                            `NO ${a.id}`,
-                                                                        ),
-                                                                )
-                                                            }
-                                                        >
-                                                            Decline
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        <Rehearsal
-                                            caseId={c.id}
-                                            onStarted={setSelected}
-                                            onError={setError}
-                                        />
-                                        <div className="tabs">
-                                            <button
-                                                className={
-                                                    tab === 'activity'
-                                                        ? 'selected'
-                                                        : ''
-                                                }
-                                                onClick={() =>
-                                                    setTab('activity')
-                                                }
-                                            >
-                                                Activity
-                                            </button>
-                                            <button
-                                                className={
-                                                    tab === 'transcript'
-                                                        ? 'selected'
-                                                        : ''
-                                                }
-                                                onClick={() =>
-                                                    setTab('transcript')
-                                                }
-                                            >
-                                                Call transcript
-                                            </button>
-                                            <button
-                                                className={
-                                                    tab === 'context'
-                                                        ? 'selected'
-                                                        : ''
-                                                }
-                                                onClick={() =>
-                                                    setTab('context')
-                                                }
-                                            >
-                                                Context
-                                            </button>
-                                        </div>
-                                        {tab === 'context' ? (
-                                            <div className="context">
-                                                <h4>What we know</h4>
-                                                <p>
-                                                    {c.context ||
-                                                        'Still gathering the details.'}
-                                                </p>
-                                                <h4>What you’ve authorized</h4>
-                                                <p>
-                                                    {c.authorization ||
-                                                        'No action authorized yet.'}
-                                                </p>
-                                            </div>
-                                        ) : (
-                                            <div className="timeline">
-                                                {timeline.length ? (
-                                                    timeline.map((e) => (
-                                                        <div
-                                                            key={e.id}
-                                                            className="timeline-item"
-                                                        >
-                                                            <span
-                                                                className={`timeline-dot ${e.kind}`}
-                                                            />
-                                                            <div>
-                                                                <small>
-                                                                    {e.actor ===
-                                                                    'business'
-                                                                        ? 'Business'
-                                                                        : e.actor ===
-                                                                            'handle'
-                                                                          ? 'Handle'
-                                                                          : 'System'}{' '}
-                                                                    <time>
-                                                                        {new Date(
-                                                                            e.at,
-                                                                        ).toLocaleTimeString(
-                                                                            [],
-                                                                            {
-                                                                                hour: '2-digit',
-                                                                                minute: '2-digit',
-                                                                            },
-                                                                        )}
-                                                                    </time>
-                                                                </small>
-                                                                <p>{e.text}</p>
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="empty-timeline">
-                                                        <Headphones size={25} />
-                                                        <p>
-                                                            {tab ===
-                                                            'transcript'
-                                                                ? 'The conversation will appear here.'
-                                                                : 'We’re getting your request ready.'}
-                                                        </p>
-                                                        <small>
-                                                            {tab ===
-                                                            'transcript'
-                                                                ? 'The full transcript is available after the call.'
-                                                                : 'Meaningful updates appear as the case moves forward.'}
-                                                        </small>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        {[
-                                            'dialing',
-                                            'in_call',
-                                            'waiting_approval',
-                                        ].includes(c.status) && (
-                                            <button
-                                                className="stop"
-                                                onClick={() =>
-                                                    void action(() =>
-                                                        request(
-                                                            `/cases/${c.id}/stop`,
-                                                            {},
-                                                        ),
-                                                    )
-                                                }
-                                            >
-                                                Stop this call
-                                            </button>
-                                        )}
-                                    </>
-                                ) : (
-                                    <div className="welcome">
-                                        <div className="welcome-art">
-                                            <span className="ring one" />
-                                            <span className="ring two" />
-                                            <span className="welcome-phone">
-                                                <Phone size={37} />
-                                                <span>
-                                                    <Check size={17} />
-                                                </span>
-                                            </span>
-                                            <span className="floating-message">
-                                                I’ll take it from here.
-                                            </span>
-                                        </div>
-                                        <div className="eyebrow">
-                                            YOUR NEW PLUS-ONE
-                                        </div>
-                                        <h2>
-                                            Life’s too short
-                                            <br />
-                                            for hold music.
-                                        </h2>
-                                        <p>
-                                            Cancel an appointment. Chase a
-                                            refund.
-                                            <br />
-                                            Sort out a reservation. Just tell
-                                            Handle.
-                                        </p>
-                                        <div className="example-chips">
-                                            <span>Reservations</span>
-                                            <span>Refunds</span>
-                                            <span>Appointments</span>
-                                        </div>
-                                    </div>
-                                )}
-                            </section>
-                            <section className="chat-panel">
-                                <div className="chat-heading">
-                                    <span className="chat-avatar">h</span>
-                                    <div>
-                                        <strong>Handle</strong>
-                                        <small>Your personal assistant</small>
-                                    </div>
-                                    <MessageCircle size={19} />
-                                </div>
-                                <div className="chat-body">
-                                    <div className="chat-date">
-                                        {new Date().toLocaleDateString([], {
-                                            month: 'long',
-                                            day: 'numeric',
-                                        })}
-                                    </div>
-                                    <div className="bubble assistant">
-                                        Hey. What can I take off your plate?
-                                    </div>
-                                    {messages.map((e) => (
-                                        <div
-                                            key={e.id}
-                                            className={`bubble ${e.actor === 'user' ? 'user' : 'assistant'}`}
-                                        >
-                                            {e.text}
-                                        </div>
-                                    ))}
-                                    {busy && <div className="typing">•••</div>}
-                                </div>
-                                <form
-                                    className="composer"
-                                    onSubmit={(e) => {
-                                        e.preventDefault();
-                                        void action(() => send());
-                                    }}
-                                >
-                                    <textarea
-                                        aria-label="Message Handle"
-                                        placeholder="Tell Handle what you need…"
-                                        value={draft}
-                                        rows={2}
-                                        onChange={(e) =>
-                                            setDraft(e.target.value)
-                                        }
-                                        onKeyDown={(e) => {
-                                            if (
-                                                e.key === 'Enter' &&
-                                                !e.shiftKey
-                                            ) {
-                                                e.preventDefault();
-                                                void action(() => send());
-                                            }
-                                        }}
-                                    />
-                                    <div>
-                                        <button
-                                            type="button"
-                                            title="Connect Gmail"
-                                            aria-label="Connect Gmail"
-                                            onClick={() => void action(gmail)}
-                                        >
-                                            <Mail size={18} />
-                                        </button>
-                                        <span>Just ask. We’ll handle it.</span>
-                                        <button
-                                            className="send"
-                                            aria-label="Send message"
-                                            disabled={busy || !draft.trim()}
-                                        >
-                                            <ArrowUp size={18} />
-                                        </button>
-                                    </div>
-                                </form>
-                                <small className="chat-footnote">
-                                    Workspace chat · Same agent as iMessage
-                                </small>
-                            </section>
+                            <CaseDetail
+                                c={c}
+                                state={state}
+                                busy={busy}
+                                action={action}
+                                send={send}
+                                setSelected={setSelected}
+                                setError={setError}
+                            />
+                            <Chat
+                                messages={messages}
+                                busy={busy}
+                                draft={draft}
+                                setDraft={setDraft}
+                                action={action}
+                                send={send}
+                                gmail={gmail}
+                            />
                         </div>
                     </>
                 )}

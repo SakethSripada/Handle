@@ -63,13 +63,41 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
         });
     });
     router.post('/messages', (req, res) => {
-        const { text } = z
-            .object({ text: z.string().trim().min(1).max(10000) })
+        const { text, caseId } = z
+            .object({
+                text: z.string().trim().min(1).max(10000),
+                caseId: z.string().optional(),
+            })
             .parse(req.body);
         const id = randomUUID();
 
-        engine.accept({ id, owner: owner(), spaceId: `web:${owner()}`, text });
+        engine.accept({
+            id,
+            owner: owner(),
+            spaceId: `web:${owner()}`,
+            text,
+            caseId,
+        });
         res.status(202).json({ id });
+    });
+    router.post('/cases/new', (_req, res) => {
+        const c = store.saveCase({
+            id: randomUUID(),
+            owner: owner(),
+            spaceId: `web:${owner()}`,
+            title: 'New request',
+            status: 'gathering',
+            goal: '',
+            business: '',
+            phone: '',
+            customerName: '',
+            context: '',
+            authorization: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        });
+
+        res.status(201).json({ id: c.id });
     });
     router.post('/cases/:id/start', async (req, res) => {
         await engine.start(String(req.params.id));
