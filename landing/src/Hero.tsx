@@ -154,6 +154,20 @@ export const Hero: React.FC = () => {
             Handle calls customer support for you, waits on hold, and texts you when it’s fixed.
           </motion.p>
           <motion.div
+            className="hero-imessage"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.9, ease: EASE, delay: 1.1 }}
+          >
+            <span className="hero-imessage-icon" aria-hidden="true">
+              <MessagesAppIcon size={48} />
+            </span>
+            <p className="hero-imessage-copy">
+              <strong>Lives in iMessage.</strong>
+              <span>Nothing to download.</span>
+            </p>
+          </motion.div>
+          <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.2, ease: EASE, delay: 1.2 }}
@@ -172,23 +186,6 @@ export const Hero: React.FC = () => {
             <a href="#features" className="link">
               Explore features <Chevron />
             </a>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1.4, delay: 1.6 }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              marginTop: 'clamp(28px, 5vh, 52px)',
-              color: '#6e6e73',
-              fontSize: 14,
-              justifyContent: wide ? 'flex-start' : 'center',
-            }}
-          >
-            <MessagesAppIcon size={20} />
-            Lives in iMessage. Nothing to download.
           </motion.div>
         </motion.div>
 
