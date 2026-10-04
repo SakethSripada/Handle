@@ -141,15 +141,32 @@ export async function checkReadiness(engine: Engine, photon: Photon) {
                     : 'SDK connected. Enroll your phone under Photon Users, then send the first text to verify delivery.'
                 : (photon.lastError ?? 'Save Photon credentials to connect.'),
     });
-    checks.push({
-        name: 'Gmail',
-        status: gmail.connected(config.ALLOWED_SENDERS.split(',')[0])
-            ? 'ready'
-            : 'action',
-        detail: gmail.connected(config.ALLOWED_SENDERS.split(',')[0])
-            ? 'Read-only email access is connected.'
-            : 'Optional for the first call. Complete Google consent to retrieve email evidence.',
-    });
+
+    if (gmail.connected(config.ALLOWED_SENDERS.split(',')[0])) {
+        try {
+            await gmail.checkConnection(config.ALLOWED_SENDERS.split(',')[0]);
+            checks.push({
+                name: 'Gmail',
+                status: 'ready',
+                detail: 'Read-only email access verified with Google.',
+            });
+        } catch (error) {
+            checks.push({
+                name: 'Gmail',
+                status: 'action',
+                detail:
+                    error instanceof Error
+                        ? error.message
+                        : 'Reconnect Gmail to retrieve email evidence.',
+            });
+        }
+    } else {
+        checks.push({
+            name: 'Gmail',
+            status: 'action',
+            detail: 'Optional for calls. Connect Gmail and complete Google consent to retrieve email evidence.',
+        });
+    }
 
     return {
         voiceProvider: config.VOICE_PROVIDER,
