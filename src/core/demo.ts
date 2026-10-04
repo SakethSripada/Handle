@@ -37,9 +37,11 @@ export function callVariables(c: Case) {
         opening_message:
             c.mode === 'demo'
                 ? 'Hi, I’m Handle, an AI assistant. You were invited to try a quick live demo. Is now a good time to chat?'
-                : `Hi, this is Handle, an AI assistant calling on behalf of ${c.customerName}. I’m hoping you can help with a customer-service request.`,
+                : c.customerName.trim()
+                  ? `Hi, I’m Handle, an AI assistant calling on behalf of ${c.customerName}.`
+                  : 'Hi, I’m Handle, an AI assistant.',
         case_context: JSON.stringify({
-            mode: c.mode === 'demo' ? 'demo' : 'customer_service',
+            mode: c.mode === 'demo' ? 'demo' : 'task',
             goal: c.goal,
             business: c.business,
             context: c.context,

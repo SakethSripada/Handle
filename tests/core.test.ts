@@ -228,3 +228,52 @@ test('explicit call numbers are preserved without guessing between multiple dest
     assert.equal(plan.phone, '+12025550110');
     assert.equal(plan.ready, true);
 });
+
+test('an information request can be ready without a name or account details', async () => {
+    const c = makeCase(new Store(':memory:'));
+    const result = await planIntake(
+        async () =>
+            JSON.stringify({
+                title: 'Check opening hours',
+                goal: 'Ask what time the store closes today',
+                business: 'Hardware store',
+                phone: '+12025550110',
+                customerName: '',
+                context: '',
+                authorization: 'Ask about hours only; make no changes',
+                ready: true,
+                needsEmail: false,
+                reply: 'I have what I need.',
+            }),
+        c,
+        [],
+    );
+
+    assert.equal(result.ready, true);
+    assert.equal(result.customerName, '');
+    assert.equal(result.context, '');
+    assert.equal(result.needsEmail, false);
+});
+
+test('task-specific missing details still prevent dialing', async () => {
+    const c = makeCase(new Store(':memory:'));
+    const result = await planIntake(
+        async () =>
+            JSON.stringify({
+                title: 'Track delivery',
+                goal: 'Find out when the package will arrive',
+                business: 'Courier',
+                phone: '+12025550110',
+                customerName: 'Alex',
+                context: '',
+                authorization: 'Ask about delivery only',
+                ready: false,
+                reply: 'What is the tracking number?',
+            }),
+        c,
+        [],
+    );
+
+    assert.equal(result.ready, false);
+    assert.equal(result.needsEmail, false);
+});

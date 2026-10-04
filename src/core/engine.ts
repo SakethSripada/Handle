@@ -303,6 +303,7 @@ export class Engine {
         );
 
         if (
+            plan.needsEmail &&
             plan.business &&
             this.gmail.connected(c.owner) &&
             !this.store.get('mail-searched', c.id)

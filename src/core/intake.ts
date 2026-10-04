@@ -11,6 +11,7 @@ export const planSchema = z.object({
     context: z.string().max(10000),
     authorization: z.string().max(3000),
     ready: z.boolean(),
+    needsEmail: z.boolean().default(false),
     reply: z.string().min(1).max(1500),
 });
 
@@ -87,11 +88,7 @@ export async function planIntake(
     parsed.ready =
         parsed.ready &&
         Boolean(
-            parsed.goal &&
-            parsed.phone &&
-            parsed.customerName &&
-            parsed.context &&
-            parsed.authorization,
+            parsed.goal.trim() && parsed.phone && parsed.authorization.trim(),
         );
 
     return parsed;

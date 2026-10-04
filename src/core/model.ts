@@ -89,5 +89,6 @@ export interface IntakePlan {
     context: string;
     authorization: string;
     ready: boolean;
+    needsEmail: boolean;
     reply: string;
 }
