@@ -154,6 +154,45 @@ export function CaseDetail({
                             <p>
                                 {c.authorization || 'No action authorized yet.'}
                             </p>
+                            {c.callMetrics && (
+                                <section>
+                                    <h4>Call performance</h4>
+                                    <p>
+                                        {c.mode === 'rehearsal'
+                                            ? 'Browser rehearsal'
+                                            : c.voiceProvider === 'photon'
+                                              ? 'Photon SIP'
+                                              : 'Twilio'}{' '}
+                                        · {c.callMetrics.durationSeconds ?? '—'}{' '}
+                                        seconds
+                                    </p>
+                                    {c.callMetrics.agentAudio && (
+                                        <p>
+                                            Agent audio after silence: median{' '}
+                                            {c.callMetrics.agentAudio.medianMs}{' '}
+                                            ms · p95{' '}
+                                            {c.callMetrics.agentAudio.p95Ms} ms
+                                            ({c.callMetrics.agentAudio.samples}{' '}
+                                            samples).
+                                        </p>
+                                    )}
+                                    {c.callMetrics.llmFirstToken && (
+                                        <p>
+                                            Model first token: median{' '}
+                                            {
+                                                c.callMetrics.llmFirstToken
+                                                    .medianMs
+                                            }{' '}
+                                            ms.
+                                        </p>
+                                    )}
+                                    <small>
+                                        ElevenLabs processing metrics. Phone
+                                        network and playback delay are not
+                                        measured here.
+                                    </small>
+                                </section>
+                            )}
                             <CallMemory c={c} />
                         </div>
                     ) : (

@@ -51,6 +51,7 @@ export function rehearsal(engine: Engine) {
             confirmation: undefined,
             confirmedAt: undefined,
             memoryExcluded: true,
+            callMetrics: undefined,
         });
 
         store.event(

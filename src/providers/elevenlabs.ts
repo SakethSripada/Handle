@@ -11,7 +11,11 @@ export interface Conversation {
         role: string;
         message?: string;
         time_in_call_secs?: number;
+        conversation_turn_metrics?: {
+            metrics?: Record<string, { elapsed_time: number }>;
+        };
     }[];
+    metadata?: { call_duration_secs?: number };
     analysis?: { transcript_summary?: string; call_successful?: string };
 }
 

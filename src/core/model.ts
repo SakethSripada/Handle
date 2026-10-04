@@ -1,3 +1,5 @@
+import type { CallMetrics } from './call-metrics.js';
+
 export const activeStatuses = [
     'gathering',
     'ready',
@@ -39,6 +41,7 @@ export interface Case {
     confirmation?: string;
     confirmedAt?: number;
     memoryExcluded?: boolean;
+    callMetrics?: CallMetrics;
 }
 
 export interface CaseEvent {

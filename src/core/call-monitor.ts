@@ -1,3 +1,4 @@
+import { callMetrics } from './call-metrics.js';
 import type { Engine } from './engine.js';
 import type { Conversation } from '../providers/elevenlabs.js';
 
@@ -64,6 +65,7 @@ export class CallMonitor {
         }
 
         if (['done', 'failed'].includes(data.status)) {
+            c.callMetrics = callMetrics(data);
             store.put('call-finalized', data.conversation_id, true);
             store.saveCase({ ...c, callToken: undefined });
         }
