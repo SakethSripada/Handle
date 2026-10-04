@@ -207,13 +207,16 @@ export function CaseDetail({
                     ) && (
                         <button
                             className="stop"
+                            disabled={busy || Boolean(c.stopRequestedAt)}
                             onClick={() =>
                                 void action(() =>
                                     request(`/cases/${c.id}/stop`, {}),
                                 )
                             }
                         >
-                            Stop this call
+                            {c.stopRequestedAt
+                                ? 'Stop requested · awaiting hangup'
+                                : 'Stop this call'}
                         </button>
                     )}
                 </>

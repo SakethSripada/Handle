@@ -382,6 +382,25 @@ export class Engine {
             throw new Error('Case not found.');
         }
 
+        if (
+            c.voiceProvider === 'photon' &&
+            ['dialing', 'in_call', 'waiting_approval'].includes(c.status)
+        ) {
+            this.store.saveCase({ ...c, stopRequestedAt: Date.now() });
+            this.store.event(
+                c.id,
+                'status',
+                'system',
+                'Stop requested. Authority revoked; waiting for the voice agent to end the SIP call.',
+            );
+            this.notify(
+                c,
+                'Stop requested. The agent will end the call when it next checks in. Hangup is not confirmed yet.',
+            );
+
+            return;
+        }
+
         if (c.callSid) {
             if (!this.config.TWILIO_AUTH_TOKEN) {
                 throw new Error(
@@ -397,7 +416,7 @@ export class Engine {
                 .update({ status: 'completed' });
         } else if (c.status === 'dialing') {
             throw new Error(
-                'The provider has not returned a call ID yet. Check Twilio before stopping.',
+                'The provider has not returned a call ID yet. Check the voice provider before stopping.',
             );
         }
 

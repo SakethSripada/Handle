@@ -44,6 +44,9 @@ export function rehearsal(engine: Engine) {
             callToken: token(),
             conversationId: undefined,
             callSid: undefined,
+            sipCallId: undefined,
+            voiceProvider: undefined,
+            stopRequestedAt: undefined,
             outcome: undefined,
         });
 

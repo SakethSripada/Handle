@@ -386,3 +386,50 @@ test('concurrent start requests cannot dial the same case twice', async () => {
         1,
     );
 });
+
+test('SIP stop revokes authority immediately and waits for observed hangup', async () => {
+    const { store, engine } = setup();
+    const c = store.saveCase({
+        id: 'sip-stop',
+        owner: '+12025550142',
+        spaceId: 'web:test',
+        title: 'Cancel',
+        status: 'in_call',
+        goal: 'Cancel',
+        business: 'Salon',
+        phone: '+12025550110',
+        customerName: 'Alex',
+        context: 'Tomorrow',
+        authorization: 'No fees',
+        createdAt: 1,
+        updatedAt: 1,
+        voiceProvider: 'photon',
+        conversationId: 'sip-conversation',
+        sipCallId: 'sip-1',
+        callToken: 'test-secret',
+    });
+    const decision = engine.decisions.request(c, 'Pay $25?');
+
+    await engine.stop(c.id);
+    assert.ok(store.case(c.id)?.stopRequestedAt);
+    assert.notEqual(store.case(c.id)?.status, 'cancelled');
+    assert.throws(
+        () => engine.decisions.answer(c.owner, `YES ${decision.id}`),
+        /call has ended/,
+    );
+
+    const result = await new VoiceTools(engine).run(c, 'finish_case', {
+        status: 'resolved',
+        summary: 'Cancelled',
+        confirmation: '123',
+    });
+
+    assert.equal((result as { stop_requested: boolean }).stop_requested, true);
+    assert.notEqual(store.case(c.id)?.status, 'resolved');
+    new CallMonitor(engine).apply(c.id, {
+        conversation_id: 'sip-conversation',
+        status: 'done',
+    });
+    assert.equal(store.case(c.id)?.status, 'cancelled');
+    assert.equal(store.case(c.id)?.callToken, undefined);
+});

@@ -10,6 +10,17 @@ export class VoiceTools {
     async run(c: Case, name: string, input: unknown): Promise<unknown> {
         const { store, gmail, decisions } = this.engine;
 
+        c = store.case(c.id) ?? c;
+
+        if (c.stopRequestedAt) {
+            return {
+                stop_requested: true,
+                authorization: '',
+                instruction:
+                    'The customer revoked all authority. Do not take any further action. Politely end the call now with end_call.',
+            };
+        }
+
         switch (name) {
             case 'get_case_context':
                 return {

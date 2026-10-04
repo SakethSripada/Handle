@@ -79,13 +79,21 @@ export class CallMonitor {
 
             store.saveCase({
                 ...c,
-                status: data.status === 'failed' ? 'failed' : 'follow_up',
-                outcome: summary,
+                status: c.stopRequestedAt
+                    ? 'cancelled'
+                    : data.status === 'failed'
+                      ? 'failed'
+                      : 'follow_up',
+                outcome: c.stopRequestedAt
+                    ? 'The call ended after your stop request.'
+                    : summary,
                 callToken: undefined,
             });
             this.engine.notify(
                 c,
-                `The call ended. ${summary}\nI don’t have a confirmed resolution yet.`,
+                c.stopRequestedAt
+                    ? 'The call has ended. Your stop request is confirmed.'
+                    : `The call ended. ${summary}\nI don’t have a confirmed resolution yet.`,
                 `result:${c.id}`,
             );
         }
