@@ -49,6 +49,35 @@ export function settings(engine: Engine, photon: Photon) {
         engine.store.emit('change');
         res.json({ saved: true });
     });
+    router.post('/voice-provider', (req, res) => {
+        const { provider } = z
+            .object({ provider: z.enum(['twilio', 'photon']) })
+            .parse(req.body);
+
+        if (
+            engine.config.CALLING_ENABLED === 'true' ||
+            engine.store
+                .cases()
+                .some(
+                    (c) =>
+                        c.mode !== 'rehearsal' &&
+                        ['dialing', 'in_call', 'waiting_approval'].includes(
+                            c.status,
+                        ),
+                )
+        ) {
+            res.status(409).json({
+                error: 'Pause calling and finish active calls before switching providers.',
+            });
+
+            return;
+        }
+
+        saveEnv({ VOICE_PROVIDER: provider });
+        engine.config.VOICE_PROVIDER = provider;
+        engine.store.emit('change');
+        res.json({ provider });
+    });
     router.post('/calling', async (req, res) => {
         const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
 
