@@ -5,10 +5,10 @@ import type { Approval, Case } from './model.js';
 export class Decisions {
     constructor(
         private store: Store,
-        private notify: (c: Case, text: string) => void,
+        private notify: (c: Case, text: string) => unknown | Promise<unknown>,
     ) {}
 
-    request(c: Case, question: string): Approval {
+    async request(c: Case, question: string): Promise<Approval> {
         if (this.store.case(c.id)?.stopRequestedAt) {
             throw new Error('The customer has requested this call stop.');
         }
@@ -30,11 +30,11 @@ export class Decisions {
             expiresAt: Date.now() + 180000,
         };
 
-        this.store.transaction(() => {
-            this.store.put('approval', a.id, a);
-            this.store.saveCase({ ...c, status: 'waiting_approval' });
-            this.store.event(c.id, 'approval', 'handle', question);
-            this.notify(
+        await this.store.transaction(async () => {
+            await this.store.put('approval', a.id, a);
+            await this.store.saveCase({ ...c, status: 'waiting_approval' });
+            await this.store.event(c.id, 'approval', 'handle', question);
+            await this.notify(
                 c,
                 `${question}\nReply YES ${a.id} or NO ${a.id}. I’ll wait up to 3 minutes; silence won’t approve anything.`,
             );
@@ -43,7 +43,7 @@ export class Decisions {
         return a;
     }
 
-    get(c: Case, id: string) {
+    async get(c: Case, id: string) {
         const a = this.store.get<Approval>('approval', id);
 
         if (!a || a.caseId !== c.id) {
@@ -52,13 +52,13 @@ export class Decisions {
 
         if (a.status === 'pending' && a.expiresAt < Date.now()) {
             a.status = 'expired';
-            this.store.put('approval', id, a);
+            await this.store.put('approval', id, a);
         }
 
         return a;
     }
 
-    answer(owner: string, text: string): Approval | undefined {
+    async answer(owner: string, text: string): Promise<Approval | undefined> {
         const match = text.trim().match(/^(yes|no)\s+([a-f0-9]{6})\s*[.!]?$/i);
 
         if (!match) {
@@ -86,7 +86,7 @@ export class Decisions {
             );
         }
 
-        const current = this.get(c, a.id);
+        const current = await this.get(c, a.id);
 
         if (current.status !== 'pending') {
             throw new Error(
@@ -96,16 +96,17 @@ export class Decisions {
 
         a.status = match[1].toLowerCase() === 'yes' ? 'approved' : 'declined';
         a.answer = text;
-        this.store.transaction(() => {
-            this.store.put('approval', a.id, a);
-            this.store.saveCase({ ...c, status: 'in_call' });
-            this.store.event(
+        a.answeredBy = owner;
+        await this.store.transaction(async () => {
+            await this.store.put('approval', a.id, a);
+            await this.store.saveCase({ ...c, status: 'in_call' });
+            await this.store.event(
                 c.id,
                 'approval',
                 'user',
                 `${a.status}: ${a.question}`,
             );
-            this.notify(
+            await this.notify(
                 c,
                 a.status === 'approved'
                     ? 'Approved. I’ll pass that exact decision on.'

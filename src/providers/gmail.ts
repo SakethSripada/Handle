@@ -10,24 +10,28 @@ interface Tokens {
     expires_at: number;
     email?: string;
 }
-
 interface OAuthState {
     owner: string;
     verifier: string;
     expiresAt: number;
     browserToken: string;
 }
-
 interface GmailPart {
     mimeType?: string;
-    body?: { data?: string };
+    body?: {
+        data?: string;
+    };
     parts?: GmailPart[];
 }
-
 interface GmailMessage {
     id: string;
     snippet: string;
-    payload?: GmailPart & { headers?: { name: string; value: string }[] };
+    payload?: GmailPart & {
+        headers?: {
+            name: string;
+            value: string;
+        }[];
+    };
 }
 
 export interface MailEvidence {
@@ -76,14 +80,14 @@ export class Gmail {
         return Boolean(this.store.get('gmail', owner));
     }
 
-    connectionLink(owner: string) {
+    async connectionLink(owner: string) {
         if (!this.configured) {
             throw new Error('Gmail OAuth is not configured yet.');
         }
 
         const id = token();
 
-        this.store.put('connect-link', id, {
+        await this.store.put('connect-link', id, {
             owner,
             expiresAt: Date.now() + 600000,
         });
@@ -91,11 +95,11 @@ export class Gmail {
         return `${this.config.PUBLIC_URL}/connect/gmail/${id}`;
     }
 
-    begin(id: string, browserToken: string) {
-        const link = this.store.get<{ owner: string; expiresAt: number }>(
-            'connect-link',
-            id,
-        );
+    async begin(id: string, browserToken: string) {
+        const link = this.store.get<{
+            owner: string;
+            expiresAt: number;
+        }>('connect-link', id);
 
         if (!link || link.expiresAt < Date.now()) {
             throw new Error(
@@ -103,12 +107,12 @@ export class Gmail {
             );
         }
 
-        this.store.remove('connect-link', id);
+        await this.store.remove('connect-link', id);
 
         const state = token();
         const verifier = token();
 
-        this.store.put<OAuthState>('oauth-state', state, {
+        await this.store.put<OAuthState>('oauth-state', state, {
             owner: link.owner,
             verifier,
             browserToken,
@@ -141,7 +145,7 @@ export class Gmail {
     async callback(state: string, code: string, browserToken: string) {
         const saved = this.store.get<OAuthState>('oauth-state', state);
 
-        this.store.remove('oauth-state', state);
+        await this.store.remove('oauth-state', state);
 
         if (
             !saved ||
@@ -157,13 +161,13 @@ export class Gmail {
             redirect_uri: this.redirectUri,
             grant_type: 'authorization_code',
         });
-        const profile = await jsonRequest<{ emailAddress: string }>(
-            'Gmail',
-            'https://gmail.googleapis.com/gmail/v1/users/me/profile',
-            { headers: { Authorization: `Bearer ${result.access_token}` } },
-        );
+        const profile = await jsonRequest<{
+            emailAddress: string;
+        }>('Gmail', 'https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+            headers: { Authorization: `Bearer ${result.access_token}` },
+        });
 
-        this.store.put(
+        await this.store.put(
             'gmail',
             saved.owner,
             seal(
@@ -214,7 +218,7 @@ export class Gmail {
                     grant_type: 'refresh_token',
                 })),
             };
-            this.store.put(
+            await this.store.put(
                 'gmail',
                 owner,
                 seal(creds, this.config.ENCRYPTION_KEY),
@@ -232,7 +236,11 @@ export class Gmail {
         const headers = {
             Authorization: `Bearer ${await this.accessToken(owner)}`,
         };
-        const list = await jsonRequest<{ messages?: { id: string }[] }>(
+        const list = await jsonRequest<{
+            messages?: {
+                id: string;
+            }[];
+        }>(
             'Gmail',
             `https://gmail.googleapis.com/gmail/v1/users/me/messages?${new URLSearchParams({ q: query, maxResults: '5' })}`,
             { headers },
@@ -289,6 +297,6 @@ export class Gmail {
             }
         }
 
-        this.store.remove('gmail', owner);
+        await this.store.remove('gmail', owner);
     }
 }

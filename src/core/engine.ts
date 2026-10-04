@@ -18,8 +18,8 @@ export class Engine {
     readonly decisions: Decisions;
     readonly telephony: Telephony;
     readonly text: TextAgents;
+    private scheduled = new Set<string>();
     private queues = new Map<string, Promise<void>>();
-
     constructor(
         readonly config: Config,
         readonly store: Store,
@@ -28,21 +28,30 @@ export class Engine {
     ) {
         this.telephony = new Telephony(config);
         this.text = new TextAgents(config, voice);
-        this.decisions = new Decisions(store, (c, text) =>
-            this.notify(c, text),
+        this.decisions = new Decisions(
+            store,
+            async (c, text) => await this.notify(c, text),
         );
     }
 
-    notify(c: Case, text: string, id: string = randomUUID()) {
-        this.store.event(c.id, 'message', 'handle', text, `out:${id}`);
-        this.store.enqueue(
-            'message',
-            { spaceId: c.spaceId, line: c.line, text },
-            id,
-        );
+    async notify(c: Case, text: string, id: string = randomUUID()) {
+        await this.store.transaction(async () => {
+            await this.store.event(
+                c.id,
+                'message',
+                'handle',
+                text,
+                `out:${id}`,
+            );
+            await this.store.enqueue(
+                'message',
+                { spaceId: c.spaceId, line: c.line, text },
+                id,
+            );
+        });
     }
 
-    accept(input: Incoming) {
+    async accept(input: Incoming) {
         const allowed = this.config.ALLOWED_SENDERS.split(',')
             .map((s) => s.trim())
             .filter(Boolean);
@@ -55,7 +64,7 @@ export class Engine {
             throw new Error('Message is too long.');
         }
 
-        if (this.store.receive(input.id, input)) {
+        if (await this.store.receive(input.id, input)) {
             this.schedule(input);
         }
     }
@@ -67,11 +76,20 @@ export class Engine {
     }
 
     private schedule(input: Incoming) {
+        if (this.scheduled.has(input.id)) {
+            return;
+        }
+
+        this.scheduled.add(input.id);
+
         const previous = this.queues.get(input.owner) ?? Promise.resolve();
         const next = previous
             .catch(() => {})
             .then(() => this.process(input))
-            .catch((error) => {
+            .then(() => this.store.completeInbox(input.id))
+            .catch(async (error) => {
+                this.store.assertAvailable();
+
                 const c = this.store
                     .cases()
                     .find(
@@ -81,20 +99,24 @@ export class Engine {
                     );
 
                 if (c) {
-                    this.store.event(
+                    await this.store.event(
                         c.id,
                         'error',
                         'system',
                         (error as Error).message,
                     );
-                    this.notify(
+                    await this.notify(
                         c,
                         'I hit a connection problem and haven’t started a new call. Send that again in a moment.',
                     );
                 }
             })
+            .then(() => this.store.completeInbox(input.id))
+            .catch(() => {
+                /* Leave the durable inbox item pending while storage is unavailable. */
+            })
             .finally(() => {
-                this.store.completeInbox(input.id);
+                this.scheduled.delete(input.id);
 
                 if (this.queues.get(input.owner) === next) {
                     this.queues.delete(input.owner);
@@ -147,7 +169,7 @@ export class Engine {
                 !/^status|^connect|^(yes|no) /i.test(input.text) &&
                 !demo
             ) {
-                this.notify(
+                await this.notify(
                     c,
                     'This request is closed. Start a new request for another action.',
                 );
@@ -156,15 +178,28 @@ export class Engine {
             }
         }
 
-        const previousEvent = this.store.get<{ caseId: string }>(
-            'event',
-            `in:${input.id}`,
-        );
+        const previousEvent = this.store.get<{
+            caseId: string;
+        }>('event', `in:${input.id}`);
 
         if (previousEvent) {
             c = this.store.case(previousEvent.caseId);
 
-            if (demo && c?.mode === 'demo') {
+            if (
+                c &&
+                ((demo && c.mode === 'demo') ||
+                    [
+                        'dialing',
+                        'in_call',
+                        'waiting_approval',
+                        'verifying',
+                        'resolved',
+                        'completed',
+                        'follow_up',
+                        'failed',
+                        'cancelled',
+                    ].includes(c.status))
+            ) {
                 // A restart must not redial a demo whose command was already applied.
                 return;
             }
@@ -189,7 +224,7 @@ export class Engine {
         }
 
         if (!c) {
-            c = this.store.saveCase({
+            c = await this.store.saveCase({
                 id: randomUUID(),
                 owner: input.owner,
                 spaceId: input.spaceId,
@@ -207,34 +242,40 @@ export class Engine {
             });
         }
 
-        this.store.event(c.id, 'message', 'user', input.text, `in:${input.id}`);
+        await this.store.event(
+            c.id,
+            'message',
+            'user',
+            input.text,
+            `in:${input.id}`,
+        );
 
         if (demo) {
             if (!demo.phone) {
-                this.notify(
+                await this.notify(
                     c,
                     'Send Demo call followed by one phone number, including its country code. Ask the participant before calling.',
                 );
             } else if (live) {
-                this.notify(
+                await this.notify(
                     c,
                     'There is already a call in progress. Finish or stop it before starting a demo.',
                 );
             } else {
                 Object.assign(c, demoDetails(demo.phone));
-                this.store.saveCase(c);
+                await this.store.saveCase(c);
 
                 if (
                     this.config.CALLING_ENABLED === 'true' &&
                     voiceNumberId(this.config)
                 ) {
-                    this.notify(
+                    await this.notify(
                         c,
                         'Your demo is ready. I’ll call the participant now.',
                     );
                     await this.start(c.id);
                 } else {
-                    this.notify(
+                    await this.notify(
                         c,
                         'Your demo is ready. Phone calling is paused; start it from the dashboard after connecting a voice line.',
                     );
@@ -246,19 +287,19 @@ export class Engine {
 
         if (/^(yes|no)\s+[a-f0-9]{6}/i.test(input.text.trim())) {
             try {
-                this.decisions.answer(input.owner, input.text);
+                await this.decisions.answer(input.owner, input.text);
             } catch (error) {
-                this.notify(c, (error as Error).message);
+                await this.notify(c, (error as Error).message);
             }
 
             return;
         }
 
         if (/^connect\s+(gmail|email)$/i.test(input.text.trim())) {
-            this.notify(
+            await this.notify(
                 c,
                 this.gmail.configured
-                    ? `Connect Gmail so I can find relevant receipts and confirmations: ${this.gmail.connectionLink(input.owner)}`
+                    ? `Connect Gmail so I can find relevant receipts and confirmations: ${await this.gmail.connectionLink(input.owner)}`
                     : 'Gmail setup is not finished yet. You can paste the reservation or receipt details here.',
             );
 
@@ -266,7 +307,7 @@ export class Engine {
         }
 
         if (/^status[?.!]?$/i.test(input.text.trim())) {
-            this.notify(
+            await this.notify(
                 c,
                 `${c.title}: ${c.status.replaceAll('_', ' ')}. ${c.outcome ?? ''}`.trim(),
             );
@@ -281,7 +322,7 @@ export class Engine {
         }
 
         if (c.status === 'verifying') {
-            this.notify(
+            await this.notify(
                 c,
                 'The call has ended. I’m checking the business’s confirmation before reporting the result.',
             );
@@ -291,8 +332,11 @@ export class Engine {
 
         if (['dialing', 'in_call', 'waiting_approval'].includes(c.status)) {
             c.context += `\nCustomer update: ${input.text}`;
-            this.store.saveCase(c);
-            this.notify(c, 'Got it. I’ve added that to the call context.');
+            await this.store.saveCase(c);
+            await this.notify(
+                c,
+                'Got it. I’ve added that to the call context.',
+            );
 
             return;
         }
@@ -311,7 +355,7 @@ export class Engine {
             this.gmail.connected(c.owner) &&
             !this.store.get('mail-searched', c.id)
         ) {
-            this.store.put('mail-searched', c.id, true);
+            await this.store.put('mail-searched', c.id, true);
 
             try {
                 const business = plan.business.replace(/["\\]/g, '');
@@ -322,7 +366,7 @@ export class Engine {
 
                 if (emails.length) {
                     for (const email of emails) {
-                        this.store.event(
+                        await this.store.event(
                             c.id,
                             'email',
                             'system',
@@ -340,8 +384,8 @@ export class Engine {
                     );
                 }
             } catch {
-                this.store.remove('mail-searched', c.id);
-                this.store.event(
+                await this.store.remove('mail-searched', c.id);
+                await this.store.event(
                     c.id,
                     'status',
                     'system',
@@ -360,26 +404,26 @@ export class Engine {
             authorization: plan.authorization,
             status: plan.ready ? 'ready' : 'gathering',
         });
-        this.store.saveCase(c);
+        await this.store.saveCase(c);
 
         if (plan.ready) {
             if (
                 this.config.CALLING_ENABLED === 'true' &&
                 voiceNumberId(this.config)
             ) {
-                this.notify(
+                await this.notify(
                     c,
                     'I have what I need. I’ll call now and text you when there’s an outcome or a decision.',
                 );
                 await this.start(c.id);
             } else {
-                this.notify(
+                await this.notify(
                     c,
                     'I have everything I need. Your request is ready; phone calling is currently paused.',
                 );
             }
         } else {
-            this.notify(c, plan.reply);
+            await this.notify(c, plan.reply);
         }
     }
 
@@ -399,7 +443,6 @@ export class Engine {
         const provider = this.config.VOICE_PROVIDER;
 
         this.checkOtherCalls(c);
-
         await checkVoiceRoute(this.config, this.voice, this.telephony, c.phone);
 
         if (
@@ -411,51 +454,59 @@ export class Engine {
             );
         }
 
-        const current = this.store.case(id);
+        await this.store.transaction(async () => {
+            const current = this.store.case(id);
 
-        this.checkOtherCalls(c);
+            this.checkOtherCalls(c);
 
-        if (
-            !current ||
-            current.status !== 'ready' ||
-            current.updatedAt !== c.updatedAt
-        ) {
-            throw new Error(
-                'The request changed while checking the phone connection. Review its current status.',
+            if (
+                !current ||
+                current.status !== 'ready' ||
+                current.updatedAt !== c.updatedAt
+            ) {
+                throw new Error(
+                    'The request changed while checking the phone connection. Review its current status.',
+                );
+            }
+
+            c.voiceProvider = provider;
+            c.status = 'dialing';
+            c.callToken = token();
+            await this.store.saveCase(c);
+            await this.store.event(
+                c.id,
+                'status',
+                'system',
+                `Dialing ${c.business || c.phone}`,
             );
-        }
-
-        c.voiceProvider = provider;
-        c.status = 'dialing';
-        c.callToken = token();
-        this.store.saveCase(c);
-        this.store.event(
-            c.id,
-            'status',
-            'system',
-            `Dialing ${c.business || c.phone}`,
-        );
+        });
+        this.store.assertAvailable();
 
         try {
             const result = await this.voice.startCall(c);
             // Re-read: a fast tool callback may have already changed the status.
             const current = this.store.case(id)!;
 
-            this.store.saveCase({
+            await this.store.saveCase({
                 ...current,
                 conversationId: result.conversation_id,
                 callSid: result.callSid,
                 sipCallId: result.sip_call_id,
             });
         } catch (error) {
-            this.store.saveCase({
+            await this.store.saveCase({
                 ...this.store.case(id)!,
                 status: 'failed',
                 outcome:
                     'Call initiation failed or was not confirmed. Check provider history before retrying.',
             });
-            this.store.event(id, 'error', 'system', (error as Error).message);
-            this.notify(
+            await this.store.event(
+                id,
+                'error',
+                'system',
+                (error as Error).message,
+            );
+            await this.notify(
                 c,
                 'I couldn’t confirm that the call started. I won’t redial automatically; check the call status first.',
             );
@@ -493,14 +544,14 @@ export class Engine {
             c.voiceProvider === 'photon' &&
             ['dialing', 'in_call', 'waiting_approval'].includes(c.status)
         ) {
-            this.store.saveCase({ ...c, stopRequestedAt: Date.now() });
-            this.store.event(
+            await this.store.saveCase({ ...c, stopRequestedAt: Date.now() });
+            await this.store.event(
                 c.id,
                 'status',
                 'system',
                 'Stop requested. Authority revoked; waiting for the voice agent to end the SIP call.',
             );
-            this.notify(
+            await this.notify(
                 c,
                 'Stop requested. The agent will end the call when it next checks in. Hangup is not confirmed yet.',
             );
@@ -527,24 +578,29 @@ export class Engine {
             );
         }
 
-        this.store.saveCase({
+        await this.store.saveCase({
             ...c,
             status: 'cancelled',
             outcome: 'Stopped at the customer’s request.',
             callToken: undefined,
         });
-        this.notify(c, 'Stopped. I won’t take further action on this request.');
+        await this.notify(
+            c,
+            'Stopped. I won’t take further action on this request.',
+        );
     }
 
     async flushMessages(messenger: Messenger) {
+        this.store.assertAvailable();
+
         for (const job of this.store.jobs('message')) {
             try {
                 const data = JSON.parse(job.body);
 
                 await messenger.send(data.spaceId, data.text, data.line);
-                this.store.finishJob(job.id);
+                await this.store.finishJob(job.id, job.body);
             } catch {
-                this.store.retryJob(job.id, job.attempts);
+                await this.store.retryJob(job.id, job.attempts);
             }
         }
     }

@@ -5,9 +5,9 @@ import type { Engine } from './engine.js';
 import type { Conversation } from '../providers/elevenlabs.js';
 
 export class CallMonitor {
+    private applying = new Map<string, Promise<void>>();
     private verifying = new Set<string>();
     constructor(private engine: Engine) {}
-
     private async verifyText(prompt: string) {
         try {
             return await this.engine.text.verify(prompt);
@@ -46,6 +46,23 @@ export class CallMonitor {
     }
 
     async apply(id: string, data: Conversation) {
+        const previous = this.applying.get(id) ?? Promise.resolve();
+        const task = previous
+            .catch(() => {})
+            .then(() => this.applyUpdate(id, data));
+
+        this.applying.set(id, task);
+
+        try {
+            await task;
+        } finally {
+            if (this.applying.get(id) === task) {
+                this.applying.delete(id);
+            }
+        }
+    }
+
+    private async applyUpdate(id: string, data: Conversation) {
         const { store } = this.engine;
         const c = store.case(id);
 
@@ -68,7 +85,7 @@ export class CallMonitor {
             : (data.transcript ?? [])
         ).entries()) {
             if (line.message) {
-                store.event(
+                await store.event(
                     c.id,
                     'transcript',
                     line.role === 'agent' ? 'handle' : 'business',
@@ -79,7 +96,7 @@ export class CallMonitor {
         }
 
         if (data.status === 'in-progress' && c.status === 'dialing') {
-            store.saveCase({ ...c, status: 'in_call' });
+            await store.saveCase({ ...c, status: 'in_call' });
         }
 
         if (
@@ -91,7 +108,7 @@ export class CallMonitor {
         }
 
         c.callMetrics = callMetrics(data);
-        store.saveCase({ ...c, callToken: undefined });
+        await store.saveCase({ ...c, callToken: undefined });
 
         if (c.mode === 'demo') {
             const stopped = c.stopRequestedAt || c.status === 'cancelled';
@@ -105,8 +122,8 @@ export class CallMonitor {
                   ? 'Demo call finished. The conversation transcript is available in Handle.'
                   : 'The demo ended without a confirmed conversation. Check the transcript before trying again.';
 
-            store.transaction(() => {
-                store.saveCase({
+            await store.transaction(async () => {
+                await store.saveCase({
                     ...c,
                     status: stopped
                         ? 'cancelled'
@@ -117,9 +134,9 @@ export class CallMonitor {
                     memoryExcluded: true,
                     outcome,
                 });
-                store.event(c.id, 'status', 'system', outcome);
-                this.engine.notify(c, outcome, `result:${c.id}`);
-                store.put('call-finalized', data.conversation_id, true);
+                await store.event(c.id, 'status', 'system', outcome);
+                await this.engine.notify(c, outcome, `result:${c.id}`);
+                await store.put('call-finalized', data.conversation_id, true);
             });
 
             return;
@@ -132,7 +149,11 @@ export class CallMonitor {
             c.status !== 'cancelled'
         ) {
             this.verifying.add(id);
-            store.saveCase({ ...c, status: 'verifying', callToken: undefined });
+            await store.saveCase({
+                ...c,
+                status: 'verifying',
+                callToken: undefined,
+            });
 
             try {
                 const verdict = await verifyOutcome(
@@ -156,7 +177,7 @@ export class CallMonitor {
                     ? `${verdict.summary}\nConfirmation: ${verdict.confirmation}`
                     : `No verified resolution. ${verdict.reason}`;
 
-                store.saveCase({
+                await store.saveCase({
                     ...latest,
                     status: latest.stopRequestedAt
                         ? 'cancelled'
@@ -168,14 +189,14 @@ export class CallMonitor {
                     confirmedAt: resolved ? Date.now() : undefined,
                     callToken: undefined,
                 });
-                store.event(c.id, 'status', 'system', outcome);
-                this.engine.notify(
+                await store.event(c.id, 'status', 'system', outcome);
+                await this.engine.notify(
                     c,
                     `${resolved ? 'Handled.' : 'The call ended; this needs a follow-up.'} ${outcome}`,
                     `result:${c.id}`,
                 );
             } catch (error) {
-                store.event(
+                await store.event(
                     id,
                     'error',
                     'system',
@@ -186,27 +207,27 @@ export class CallMonitor {
                     return;
                 }
 
-                store.saveCase({
+                await store.saveCase({
                     ...store.case(id)!,
                     status: 'follow_up',
                     callToken: undefined,
                     outcome:
                         'The call ended, but its outcome could not be verified. Review the transcript before taking further action.',
                 });
-                this.engine.notify(
+                await this.engine.notify(
                     c,
                     'The call ended, but I couldn’t verify its outcome. I won’t claim it was resolved or call again automatically.',
                     `result:${c.id}`,
                 );
             } finally {
                 this.verifying.delete(id);
-                store.put('call-finalized', data.conversation_id, true);
+                await store.put('call-finalized', data.conversation_id, true);
             }
 
             return;
         }
 
-        store.put('call-finalized', data.conversation_id, true);
+        await store.put('call-finalized', data.conversation_id, true);
 
         if (
             ['dialing', 'in_call', 'waiting_approval', 'verifying'].includes(
@@ -217,7 +238,7 @@ export class CallMonitor {
                 data.analysis?.transcript_summary ??
                 'The call ended without a confirmed outcome.';
 
-            store.saveCase({
+            await store.saveCase({
                 ...c,
                 status: c.stopRequestedAt
                     ? 'cancelled'
@@ -229,7 +250,7 @@ export class CallMonitor {
                     : summary,
                 callToken: undefined,
             });
-            this.engine.notify(
+            await this.engine.notify(
                 c,
                 c.stopRequestedAt
                     ? 'The call has ended. Your stop request is confirmed.'

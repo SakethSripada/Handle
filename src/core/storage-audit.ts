@@ -1,6 +1,6 @@
 import type { Config } from '../config.js';
 import type { Store } from './store.js';
-import type { CaseEvent } from './model.js';
+import type { CaseEvent, Approval } from './model.js';
 import { jsonRequest } from '../providers/http.js';
 
 interface SQLResult {
@@ -11,8 +11,9 @@ export async function auditStorage(config: Config, store: Store) {
     const counts = [];
 
     for (const [table, records] of [
-        ['case_state', store.cases().map(({ callToken: _, ...c }) => c)],
-        ['case_event', store.list<CaseEvent>('event')],
+        ['call_case', store.cases()],
+        ['call_event', store.list<CaseEvent>('event')],
+        ['call_approval', store.list<Approval>('approval')],
     ] as const) {
         const result = await jsonRequest<SQLResult[]>(
             'SpacetimeDB',
@@ -22,7 +23,7 @@ export async function auditStorage(config: Config, store: Store) {
                 headers: {
                     Authorization: `Bearer ${config.SPACETIMEDB_TOKEN}`,
                 },
-                body: `SELECT id, data FROM ${table}`,
+                body: `SELECT id, data FROM ${table} WHERE deleted = false`,
             },
         );
         const cloud = new Map(result.flatMap((r) => r.rows));
@@ -54,7 +55,9 @@ export async function auditStorage(config: Config, store: Store) {
 
     return {
         checkedAt: Date.now(),
-        consistent: counts.every((c) => c.missing === 0 && c.different === 0),
+        consistent: counts.every(
+            (c) => c.missing === 0 && c.different === 0 && c.local === c.cloud,
+        ),
         counts,
     };
 }

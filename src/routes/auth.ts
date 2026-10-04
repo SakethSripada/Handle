@@ -16,10 +16,9 @@ export function cookie(req: Request, name: string) {
 export function auth(config: Config, store: Store): RequestHandler {
     return (req, res, next) => {
         const bearer = req.headers.authorization?.replace(/^Bearer /, '') ?? '';
-        const session = store.get<{ expiresAt: number }>(
-            'session',
-            cookie(req, 'handle_session'),
-        );
+        const session = store.get<{
+            expiresAt: number;
+        }>('session', cookie(req, 'handle_session'));
 
         if (
             equal(bearer, config.DASHBOARD_TOKEN) ||
@@ -33,9 +32,15 @@ export function auth(config: Config, store: Store): RequestHandler {
 }
 
 export function sessionLogin(config: Config, store: Store): RequestHandler {
-    const attempts = new Map<string, { count: number; reset: number }>();
+    const attempts = new Map<
+        string,
+        {
+            count: number;
+            reset: number;
+        }
+    >();
 
-    return (req, res) => {
+    return async (req, res) => {
         const ip = req.ip ?? 'unknown';
         const entry = attempts.get(ip) ?? {
             count: 0,
@@ -69,7 +74,7 @@ export function sessionLogin(config: Config, store: Store): RequestHandler {
 
         const id = token();
 
-        store.put('session', id, { expiresAt: Date.now() + 86400000 });
+        await store.put('session', id, { expiresAt: Date.now() + 86400000 });
         res.cookie('handle_session', id, {
             httpOnly: true,
             sameSite: 'strict',

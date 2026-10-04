@@ -7,7 +7,6 @@ const short = z.string().trim().min(1).max(2000);
 
 export class VoiceTools {
     constructor(private engine: Engine) {}
-
     async run(c: Case, name: string, input: unknown): Promise<unknown> {
         const { store, gmail, decisions } = this.engine;
 
@@ -43,6 +42,8 @@ export class VoiceTools {
             }
         }
 
+        store.assertAvailable();
+
         switch (name) {
             case 'get_case_context':
                 return {
@@ -62,7 +63,7 @@ export class VoiceTools {
             case 'request_decision': {
                 const { question } = z.object({ question: short }).parse(input);
 
-                return decisions.request(c, question);
+                return await decisions.request(c, question);
             }
 
             case 'get_decision': {
@@ -70,16 +71,16 @@ export class VoiceTools {
                     .object({ decision_id: z.string().min(1) })
                     .parse(input);
 
-                return decisions.get(c, decision_id);
+                return await decisions.get(c, decision_id);
             }
 
             case 'report_progress': {
                 const { message } = z.object({ message: short }).parse(input);
 
-                store.event(c.id, 'status', 'handle', message);
+                await store.event(c.id, 'status', 'handle', message);
 
                 if (c.status === 'dialing') {
-                    store.saveCase({ ...c, status: 'in_call' });
+                    await store.saveCase({ ...c, status: 'in_call' });
                 }
 
                 return { recorded: true };
@@ -92,7 +93,7 @@ export class VoiceTools {
                 const emails = await gmail.search(c.owner, query);
 
                 for (const email of emails) {
-                    store.event(
+                    await store.event(
                         c.id,
                         'email',
                         'system',
@@ -126,9 +127,13 @@ export class VoiceTools {
                     );
                 }
 
-                const pending = store
-                    .approvals(c.id)
-                    .some((a) => decisions.get(c, a.id).status === 'pending');
+                const pending = (
+                    await Promise.all(
+                        store
+                            .approvals(c.id)
+                            .map((a) => decisions.get(c, a.id)),
+                    )
+                ).some((a) => a.status === 'pending');
 
                 if (result.status === 'resolved' && pending) {
                     throw new Error(
@@ -137,14 +142,14 @@ export class VoiceTools {
                 }
 
                 if (result.status === 'resolved') {
-                    store.saveCase({
+                    await store.saveCase({
                         ...c,
                         proposedOutcome: {
                             summary: result.summary,
                             confirmation: result.confirmation,
                         },
                     });
-                    store.event(
+                    await store.event(
                         c.id,
                         'status',
                         'system',
@@ -161,8 +166,8 @@ export class VoiceTools {
 
                 const outcome = `${result.summary}${result.confirmation ? `\nConfirmation: ${result.confirmation}` : ''}`;
 
-                store.transaction(() => {
-                    store.saveCase({
+                await store.transaction(async () => {
+                    await store.saveCase({
                         ...c,
                         status: result.status,
                         proposedOutcome: undefined,
@@ -176,8 +181,8 @@ export class VoiceTools {
                                 ? Date.now()
                                 : undefined,
                     });
-                    store.event(c.id, 'status', 'handle', outcome);
-                    this.engine.notify(
+                    await store.event(c.id, 'status', 'handle', outcome);
+                    await this.engine.notify(
                         c,
                         `${result.status === 'follow_up' ? 'Update — this needs a follow-up.' : 'I couldn’t complete this.'} ${outcome}`,
                         `result:${c.id}`,

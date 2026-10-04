@@ -1,84 +1,141 @@
-import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type { Case, CaseEvent, Approval } from './model.js';
+import {
+    recordKey,
+    type StateChange,
+    type StateRecord,
+} from './state-record.js';
 
-export class Store extends EventEmitter {
-    readonly db: DatabaseSync;
+interface Transaction {
+    changes: Map<string, StateChange>;
+}
+
+interface Job {
+    id: string;
+    kind: string;
+    body: string;
+    attempts: number;
+    nextAt: number;
+    createdAt: number;
+}
+
+interface Inbox {
+    id: string;
+    body: string;
+    done: boolean;
+    createdAt: number;
+}
+
+// Reads come from a committed subscription snapshot. Writes resolve only after
+// the backing database accepts the entire transaction.
+export abstract class Store extends EventEmitter {
+    protected records = new Map<string, StateRecord>();
+    protected available = true;
+    private context = new AsyncLocalStorage<Transaction>();
+    private pending: Promise<unknown> = Promise.resolve();
     private changeQueued = false;
 
-    constructor(path = '.data/handle.sqlite') {
-        super();
+    protected abstract commit(changes: StateChange[]): Promise<void>;
+    abstract close(): void | Promise<void>;
 
-        if (path !== ':memory:') {
-            mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+    protected changed() {
+        if (this.changeQueued) {
+            return;
         }
 
-        this.db = new DatabaseSync(path);
-        this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
-      CREATE TABLE IF NOT EXISTS records (kind TEXT, id TEXT, body TEXT NOT NULL, PRIMARY KEY(kind,id));
-      CREATE TABLE IF NOT EXISTS inbox (id TEXT PRIMARY KEY, body TEXT NOT NULL, done INTEGER DEFAULT 0);
-      CREATE TABLE IF NOT EXISTS outbox (id TEXT PRIMARY KEY, kind TEXT, body TEXT, attempts INTEGER DEFAULT 0, next_at INTEGER DEFAULT 0);
-    `);
+        this.changeQueued = true;
+        queueMicrotask(() => {
+            this.changeQueued = false;
+            this.emit('change');
+        });
     }
 
-    private changed() {
-        if (!this.changeQueued) {
-            this.changeQueued = true;
-            queueMicrotask(() => {
-                this.changeQueued = false;
-                this.emit('change');
-            });
+    assertAvailable() {
+        if (!this.available) {
+            throw new Error(
+                'SpacetimeDB is reconnecting. No new action was authorized.',
+            );
         }
     }
 
     get<T>(kind: string, id: string): T | undefined {
-        const row = this.db
-            .prepare('SELECT body FROM records WHERE kind=? AND id=?')
-            .get(kind, id) as { body: string } | undefined;
+        const key = recordKey(kind, id);
+        const row =
+            this.context.getStore()?.changes.get(key) ?? this.records.get(key);
 
-        return row && (JSON.parse(row.body) as T);
+        return row && !row.deleted ? (JSON.parse(row.data) as T) : undefined;
     }
 
     list<T>(kind: string): T[] {
-        return (
-            this.db
-                .prepare('SELECT body FROM records WHERE kind=?')
-                .all(kind) as { body: string }[]
-        ).map((r) => JSON.parse(r.body) as T);
-    }
+        const rows = new Map(this.records);
 
-    put<T>(kind: string, id: string, body: T) {
-        this.db
-            .prepare(
-                'INSERT INTO records VALUES (?,?,?) ON CONFLICT(kind,id) DO UPDATE SET body=excluded.body',
-            )
-            .run(kind, id, JSON.stringify(body));
-        this.changed();
-    }
-
-    remove(kind: string, id: string) {
-        this.db
-            .prepare('DELETE FROM records WHERE kind=? AND id=?')
-            .run(kind, id);
-        this.changed();
-    }
-
-    transaction<T>(fn: () => T): T {
-        this.db.exec('BEGIN IMMEDIATE');
-
-        try {
-            const value = fn();
-
-            this.db.exec('COMMIT');
-
-            return value;
-        } catch (error) {
-            this.db.exec('ROLLBACK');
-            throw error;
+        for (const [key, row] of this.context.getStore()?.changes ?? []) {
+            rows.set(key, { ...row, key, revision: row.expectedRevision + 1 });
         }
+
+        return [...rows.values()]
+            .filter((row) => row.kind === kind && !row.deleted)
+            .map((row) => JSON.parse(row.data) as T);
+    }
+
+    async put<T>(kind: string, id: string, body: T) {
+        await this.write(kind, id, JSON.stringify(body), false);
+    }
+
+    async remove(kind: string, id: string) {
+        await this.write(kind, id, '', true);
+    }
+
+    private async write(
+        kind: string,
+        id: string,
+        data: string,
+        deleted: boolean,
+    ) {
+        if (!this.context.getStore()) {
+            await this.transaction(() => this.write(kind, id, data, deleted));
+
+            return;
+        }
+
+        const key = recordKey(kind, id);
+        const changes = this.context.getStore()!.changes;
+        const expectedRevision =
+            changes.get(key)?.expectedRevision ??
+            this.records.get(key)?.revision ??
+            0;
+
+        changes.set(key, { kind, id, data, deleted, expectedRevision });
+    }
+
+    async transaction<T>(fn: () => T | Promise<T>): Promise<T> {
+        if (this.context.getStore()) {
+            return fn();
+        }
+
+        const run = this.pending
+            .catch(() => {})
+            .then(async () => {
+                this.assertAvailable();
+
+                const transaction = { changes: new Map<string, StateChange>() };
+
+                return this.context.run(transaction, async () => {
+                    const result = await fn();
+
+                    if (transaction.changes.size) {
+                        await this.commit([...transaction.changes.values()]);
+                    }
+
+                    return result;
+                });
+            });
+
+        this.pending = run;
+
+        return run;
     }
 
     cases() {
@@ -91,51 +148,41 @@ export class Store extends EventEmitter {
         return this.get<Case>('case', id);
     }
 
-    saveCase(c: Case) {
-        c.updatedAt = Date.now();
-        this.put('case', c.id, c);
+    async saveCase(c: Case) {
+        const saved = { ...c, updatedAt: Date.now() };
 
-        const { callToken: _, ...safe } = c;
+        await this.put('case', c.id, saved);
 
-        this.enqueue(
-            'replicate',
-            { table: 'case', id: c.id, data: safe },
-            `case:${c.id}`,
-        );
-
-        return c;
+        return saved;
     }
 
-    event(
+    async event(
         caseId: string,
         kind: CaseEvent['kind'],
         actor: CaseEvent['actor'],
         text: string,
         id: string = randomUUID(),
     ) {
-        const existing = this.get<CaseEvent>('event', id);
+        return this.transaction(async () => {
+            const existing = this.get<CaseEvent>('event', id);
 
-        if (existing) {
-            return existing;
-        }
+            if (existing) {
+                return existing;
+            }
 
-        const event: CaseEvent = {
-            id,
-            caseId,
-            kind,
-            actor,
-            text,
-            at: Date.now(),
-        };
+            const event: CaseEvent = {
+                id,
+                caseId,
+                kind,
+                actor,
+                text,
+                at: Date.now(),
+            };
 
-        this.put('event', id, event);
-        this.enqueue(
-            'replicate',
-            { table: 'event', id, data: event },
-            `event:${id}`,
-        );
+            await this.put('event', id, event);
 
-        return event;
+            return event;
+        });
     }
 
     events(caseId: string) {
@@ -150,87 +197,97 @@ export class Store extends EventEmitter {
         );
     }
 
-    enqueue(kind: string, body: unknown, id: string = randomUUID()) {
-        this.db
-            .prepare(
-                'INSERT INTO outbox (id,kind,body) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body',
-            )
-            .run(id, kind, JSON.stringify(body));
-        this.changed();
+    async enqueue(kind: string, body: unknown, id: string = randomUUID()) {
+        await this.transaction(async () => {
+            const existing = this.get<Job>('outbox', id);
+
+            await this.put('outbox', id, {
+                id,
+                kind,
+                body: JSON.stringify(body),
+                attempts: existing?.attempts ?? 0,
+                nextAt: existing?.nextAt ?? 0,
+                createdAt: existing?.createdAt ?? Date.now(),
+            });
+        });
     }
 
     queueStatus() {
-        const counts = this.db
-            .prepare(
-                'SELECT kind, COUNT(*) AS pending, SUM(CASE WHEN attempts > 0 THEN 1 ELSE 0 END) AS retrying FROM outbox GROUP BY kind',
-            )
-            .all() as { kind: string; pending: number; retrying: number }[];
+        const jobs = this.list<Job>('outbox');
+        const counts = (kind: string) => ({
+            pending: jobs.filter((j) => j.kind === kind).length,
+            retrying: jobs.filter((j) => j.kind === kind && j.attempts > 0)
+                .length,
+        });
 
         return {
-            messages: counts.find((row) => row.kind === 'message') ?? {
-                pending: 0,
-                retrying: 0,
-            },
-            replication: counts.find((row) => row.kind === 'replicate') ?? {
-                pending: 0,
-                retrying: 0,
-            },
+            messages: counts('message'),
+            replication: counts('replicate'),
             incoming: this.pendingInbox().length,
         };
     }
 
     jobs(kind: string) {
-        return this.db
-            .prepare(
-                'SELECT * FROM outbox WHERE kind=? AND next_at<=? ORDER BY rowid LIMIT 20',
-            )
-            .all(kind, Date.now()) as unknown as {
-            id: string;
-            kind: string;
-            body: string;
-            attempts: number;
-        }[];
+        return this.list<Job>('outbox')
+            .filter((j) => j.kind === kind && j.nextAt <= Date.now())
+            .sort((a, b) => a.createdAt - b.createdAt)
+            .slice(0, 20);
     }
 
-    finishJob(id: string, body?: string) {
-        this.changed();
+    async finishJob(id: string, body?: string) {
+        await this.transaction(async () => {
+            const job = this.get<Job>('outbox', id);
 
-        if (body) {
-            this.db
-                .prepare('DELETE FROM outbox WHERE id=? AND body=?')
-                .run(id, body);
-        } else {
-            this.db.prepare('DELETE FROM outbox WHERE id=?').run(id);
-        }
+            if (job && (!body || job.body === body)) {
+                await this.remove('outbox', id);
+            }
+        });
     }
 
-    retryJob(id: string, attempts: number) {
-        this.changed();
-        this.db
-            .prepare(
-                'UPDATE outbox SET attempts=attempts+1,next_at=? WHERE id=?',
-            )
-            .run(Date.now() + Math.min(60000, 1000 * 2 ** attempts), id);
+    async retryJob(id: string, attempts: number) {
+        await this.transaction(async () => {
+            const job = this.get<Job>('outbox', id);
+
+            if (job) {
+                await this.put('outbox', id, {
+                    ...job,
+                    attempts: job.attempts + 1,
+                    nextAt: Date.now() + Math.min(60000, 1000 * 2 ** attempts),
+                });
+            }
+        });
     }
 
-    receive(id: string, body: unknown) {
-        return (
-            this.db
-                .prepare('INSERT OR IGNORE INTO inbox (id,body) VALUES (?,?)')
-                .run(id, JSON.stringify(body)).changes > 0
-        );
+    async receive(id: string, body: unknown) {
+        return this.transaction(async () => {
+            if (this.get('inbox', id)) {
+                return false;
+            }
+
+            await this.put('inbox', id, {
+                id,
+                body: JSON.stringify(body),
+                done: false,
+                createdAt: Date.now(),
+            });
+
+            return true;
+        });
     }
 
     pendingInbox() {
-        return this.db
-            .prepare('SELECT id,body FROM inbox WHERE done=0 ORDER BY rowid')
-            .all() as {
-            id: string;
-            body: string;
-        }[];
+        return this.list<Inbox>('inbox')
+            .filter((r) => !r.done)
+            .sort((a, b) => a.createdAt - b.createdAt);
     }
 
-    completeInbox(id: string) {
-        this.db.prepare('UPDATE inbox SET done=1 WHERE id=?').run(id);
+    async completeInbox(id: string) {
+        await this.transaction(async () => {
+            const row = this.get<Inbox>('inbox', id);
+
+            if (row) {
+                await this.put('inbox', id, { ...row, done: true });
+            }
+        });
     }
 }

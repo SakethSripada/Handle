@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadConfig } from '../src/config.js';
-import { Store } from '../src/core/store.js';
+import { LocalStore as Store } from '../src/core/local-store.js';
 import { Engine } from '../src/core/engine.js';
 import { VoiceTools } from '../src/core/voice-tools.js';
 import { CallMonitor } from '../src/core/call-monitor.js';
@@ -39,7 +39,7 @@ const input = {
     text: 'Demo call (202) 555-0110',
 };
 
-test('demo command accepts one explicit number and rejects ambiguous instructions', () => {
+test('demo command accepts one explicit number and rejects ambiguous instructions', async () => {
     assert.equal(demoCommand(input.text)?.phone, '+12025550110');
     assert.equal(
         demoCommand('Demo call +44 20 7946 0018')?.phone,
@@ -49,12 +49,11 @@ test('demo command accepts one explicit number and rejects ambiguous instruction
     assert.equal(demoCommand('Demo call 911')?.phone, '');
     assert.equal(demoCommand('Could you explain demo calling?'), undefined);
 });
-
 test('demo intake needs no LLM or email and duplicate delivery creates one request', async () => {
     const { engine, store } = setup();
 
-    engine.accept(input);
-    engine.accept(input);
+    await engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
 
     const c = store.cases()[0];
@@ -68,22 +67,21 @@ test('demo intake needs no LLM or email and duplicate delivery creates one reque
     assert.match(callVariables(c).opening_message, /live demo/);
     assert.equal(JSON.parse(callVariables(c).case_context).mode, 'demo');
 });
-
 test('a new demo does not overwrite a prepared customer-service request', async () => {
     const { engine, store } = setup();
 
-    engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
 
     const first = store.cases()[0];
 
-    store.saveCase({
+    await store.saveCase({
         ...first,
         mode: undefined,
         title: 'Cancel appointment',
         context: 'Private reservation',
     });
-    engine.accept({ ...input, id: 'second' });
+    await engine.accept({ ...input, id: 'second' });
     await engine.idle();
     assert.equal(store.cases().length, 2);
     assert.equal(store.case(first.id)?.title, 'Cancel appointment');
@@ -93,17 +91,20 @@ test('a new demo does not overwrite a prepared customer-service request', async 
         ),
     );
 });
-
 test('a demo cannot start a second call while the current call is live', async () => {
     const { engine, store } = setup();
 
-    engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
 
     const c = store.cases()[0];
 
-    store.saveCase({ ...c, status: 'in_call', context: 'Original context' });
-    engine.accept({
+    await store.saveCase({
+        ...c,
+        status: 'in_call',
+        context: 'Original context',
+    });
+    await engine.accept({
         ...input,
         id: 'another-demo',
         text: 'Demo call 2025550112',
@@ -114,11 +115,10 @@ test('a demo cannot start a second call while the current call is live', async (
     assert.equal(store.case(c.id)?.context, 'Original context');
     assert.ok(store.events(c.id).some((e) => /already a call/.test(e.text)));
 });
-
 test('demo tools cannot access private evidence, approvals, or report a real resolution', async () => {
     const { engine, store } = setup();
 
-    engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
 
     const c = store.cases()[0];
@@ -140,7 +140,11 @@ test('demo tools cannot access private evidence, approvals, or report a real res
         'finish_case',
     ]) {
         assert.equal(
-            ((await tools.run(c, name, {})) as { allowed: boolean }).allowed,
+            (
+                (await tools.run(c, name, {})) as {
+                    allowed: boolean;
+                }
+            ).allowed,
             false,
         );
     }
@@ -156,16 +160,15 @@ test('demo tools cannot access private evidence, approvals, or report a real res
     assert.equal(store.approvals(c.id).length, 0);
     assert.equal(store.case(c.id)?.status, 'ready');
 });
-
 test('demo finalization records a conversation once without claiming a business resolution', async () => {
     const { engine, store } = setup();
 
-    engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
 
     const c = store.cases()[0];
 
-    store.saveCase({
+    await store.saveCase({
         ...c,
         status: 'in_call',
         conversationId: 'demo-conversation',
@@ -198,16 +201,19 @@ test('demo finalization records a conversation once without claiming a business 
         [],
     );
 });
-
 test('an unanswered demo cannot be reported as a completed conversation', async () => {
     const { engine, store } = setup();
 
-    engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
 
     const c = store.cases()[0];
 
-    store.saveCase({ ...c, status: 'dialing', conversationId: 'no-answer' });
+    await store.saveCase({
+        ...c,
+        status: 'dialing',
+        conversationId: 'no-answer',
+    });
     await new CallMonitor(engine).apply(c.id, {
         conversation_id: 'no-answer',
         status: 'done',
@@ -219,16 +225,15 @@ test('an unanswered demo cannot be reported as a completed conversation', async 
         /without a confirmed conversation/,
     );
 });
-
 test('a SIP demo honors stop before exposing context and confirms observed hangup', async () => {
     const { engine, store } = setup();
 
-    engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
 
     const c = store.cases()[0];
 
-    store.saveCase({
+    await store.saveCase({
         ...c,
         status: 'in_call',
         voiceProvider: 'photon',
@@ -240,7 +245,9 @@ test('a SIP demo honors stop before exposing context and confirms observed hangu
         c,
         'get_case_context',
         {},
-    )) as { stop_requested: boolean };
+    )) as {
+        stop_requested: boolean;
+    };
 
     assert.equal(result.stop_requested, true);
     await new CallMonitor(engine).apply(c.id, {
@@ -249,16 +256,15 @@ test('a SIP demo honors stop before exposing context and confirms observed hangu
     });
     assert.equal(store.case(c.id)?.status, 'cancelled');
 });
-
 test('a ready demo cannot bypass an existing call through the dashboard', async () => {
     const { engine, store } = setup();
 
-    engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
 
     const c = store.cases()[0];
 
-    store.saveCase({
+    await store.saveCase({
         ...c,
         id: 'other-call',
         spaceId: 'web:test',
@@ -268,17 +274,23 @@ test('a ready demo cannot bypass an existing call through the dashboard', async 
     await assert.rejects(() => engine.start(c.id), /Finish the current call/);
     assert.equal(store.case(c.id)?.status, 'ready');
 });
-
 test('replaying the inbox after a restart cannot redial a completed demo', async () => {
     const { engine, store } = setup();
 
-    engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
 
     const c = store.cases()[0];
 
-    store.saveCase({ ...c, status: 'completed', outcome: 'Demo finished.' });
-    store.db.prepare('UPDATE inbox SET done=0 WHERE id=?').run(input.id);
+    await store.saveCase({
+        ...c,
+        status: 'completed',
+        outcome: 'Demo finished.',
+    });
+    await store.put('inbox', input.id, {
+        ...store.get<object>('inbox', input.id),
+        done: false,
+    });
     engine.config.CALLING_ENABLED = 'true';
     engine.config.ELEVENLABS_PHONE_NUMBER_ID = 'test-number';
     engine.resume();
@@ -287,7 +299,6 @@ test('replaying the inbox after a restart cannot redial a completed demo', async
     assert.equal(store.case(c.id)?.status, 'completed');
     assert.equal(store.case(c.id)?.outcome, 'Demo finished.');
 });
-
 test('an enabled voice route starts a demo once from a duplicated text', async () => {
     const { engine, store, voice } = setup();
 
@@ -322,8 +333,8 @@ test('an enabled voice route starts a demo once from a duplicated text', async (
         };
     };
 
-    engine.accept(input);
-    engine.accept(input);
+    await engine.accept(input);
+    await engine.accept(input);
     await engine.idle();
     assert.equal(dials, 1);
     assert.equal(store.cases()[0].status, 'dialing');

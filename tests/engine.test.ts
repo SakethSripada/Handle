@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../src/core/store.js';
+import { LocalStore as Store } from '../src/core/local-store.js';
 import { Engine } from '../src/core/engine.js';
 import { VoiceTools } from '../src/core/voice-tools.js';
 import { CallMonitor } from '../src/core/call-monitor.js';
@@ -9,11 +9,8 @@ import { ElevenLabs } from '../src/providers/elevenlabs.js';
 import { Gmail } from '../src/providers/gmail.js';
 
 process.env.DASHBOARD_TOKEN = 'test-token-'.repeat(4);
-
 process.env.ENCRYPTION_KEY = 'ab'.repeat(32);
-
 process.env.ALLOWED_SENDERS = '+12025550142';
-
 process.env.CALLING_ENABLED = 'false';
 
 function setup() {
@@ -46,7 +43,7 @@ test('a real request reaches ready without dialing while calling is paused', asy
         throw new Error('Should not dial');
     };
 
-    engine.accept({
+    await engine.accept({
         id: 'm1',
         owner: '+12025550142',
         spaceId: 'web:test',
@@ -56,7 +53,7 @@ test('a real request reaches ready without dialing while calling is paused', asy
     assert.equal(store.cases()[0].status, 'ready');
     assert.equal(dials, 0);
     await assert.rejects(() => engine.start(store.cases()[0].id), /paused/);
-    engine.accept({
+    await engine.accept({
         id: 'm1',
         owner: '+12025550142',
         spaceId: 'web:test',
@@ -64,9 +61,9 @@ test('a real request reaches ready without dialing while calling is paused', asy
     });
     await engine.idle();
     assert.equal(store.cases().length, 1);
-    assert.throws(
-        () =>
-            engine.accept({
+    await assert.rejects(
+        async () =>
+            await engine.accept({
                 id: 'm2',
                 owner: 'stranger',
                 spaceId: 'x',
@@ -75,10 +72,9 @@ test('a real request reaches ready without dialing while calling is paused', asy
         /not enrolled/,
     );
 });
-
 test('resolution needs confirmation and cannot bypass pending approval', async () => {
     const { store, engine } = setup();
-    const c = store.saveCase({
+    const c = await store.saveCase({
         id: 'c',
         owner: '+12025550142',
         spaceId: 'web:test',
@@ -105,7 +101,7 @@ test('resolution needs confirmation and cannot bypass pending approval', async (
         /explicit confirmation/,
     );
 
-    const decision = engine.decisions.request(c, 'Pay $15?');
+    const decision = await engine.decisions.request(c, 'Pay $15?');
 
     await assert.rejects(
         () =>
@@ -116,7 +112,7 @@ test('resolution needs confirmation and cannot bypass pending approval', async (
             }),
         /unresolved decision/,
     );
-    engine.decisions.answer(c.owner, `NO ${decision.id}`);
+    await engine.decisions.answer(c.owner, `NO ${decision.id}`);
     await tools.run(store.case(c.id)!, 'finish_case', {
         status: 'resolved',
         summary: 'They waived the fee and cancelled.',
@@ -126,11 +122,10 @@ test('resolution needs confirmation and cannot bypass pending approval', async (
     assert.equal(store.case(c.id)?.proposedOutcome?.confirmation, 'ref 123');
     assert.equal(store.jobs('message').length, 2);
 });
-
-test('a disconnected call is not treated as a successful resolution', () => {
+test('a disconnected call is not treated as a successful resolution', async () => {
     const { store, engine } = setup();
 
-    store.saveCase({
+    await store.saveCase({
         id: 'c',
         owner: '+12025550142',
         spaceId: 'web:test',
@@ -147,7 +142,7 @@ test('a disconnected call is not treated as a successful resolution', () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
     });
-    new CallMonitor(engine).apply('c', {
+    await new CallMonitor(engine).apply('c', {
         conversation_id: 'conv-1',
         status: 'done',
         analysis: {
@@ -163,10 +158,9 @@ test('a disconnected call is not treated as a successful resolution', () => {
         1,
     );
 });
-
-test('a late approval cannot revive a call that already ended', () => {
+test('a late approval cannot revive a call that already ended', async () => {
     const { store, engine } = setup();
-    const c = store.saveCase({
+    const c = await store.saveCase({
         id: 'closed',
         owner: '+12025550142',
         spaceId: 'web:test',
@@ -181,20 +175,20 @@ test('a late approval cannot revive a call that already ended', () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
     });
-    const decision = engine.decisions.request(c, 'Pay $25?');
+    const decision = await engine.decisions.request(c, 'Pay $25?');
 
-    store.saveCase({ ...store.case(c.id)!, status: 'follow_up' });
-    assert.throws(
-        () => engine.decisions.answer(c.owner, `YES ${decision.id}`),
+    await store.saveCase({ ...store.case(c.id)!, status: 'follow_up' });
+    await assert.rejects(
+        async () =>
+            await engine.decisions.answer(c.owner, `YES ${decision.id}`),
         /call has ended/,
     );
     assert.equal(store.case(c.id)?.status, 'follow_up');
 });
-
-test('post-call transcript does not duplicate a browser transcript', () => {
+test('post-call transcript does not duplicate a browser transcript', async () => {
     const { store, engine } = setup();
 
-    store.saveCase({
+    await store.saveCase({
         id: 'browser',
         mode: 'rehearsal',
         owner: '+12025550142',
@@ -211,14 +205,14 @@ test('post-call transcript does not duplicate a browser transcript', () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
     });
-    store.event(
+    await store.event(
         'browser',
         'transcript',
         'business',
         'It is cancelled.',
         'browser:browser:1',
     );
-    new CallMonitor(engine).apply('browser', {
+    await new CallMonitor(engine).apply('browser', {
         conversation_id: 'conv-browser',
         status: 'done',
         transcript: [{ role: 'user', message: 'It is cancelled.' }],
@@ -228,7 +222,6 @@ test('post-call transcript does not duplicate a browser transcript', () => {
         1,
     );
 });
-
 test('Gmail can supply missing evidence without authorizing a new action', async () => {
     const { store, voice, engine } = setup();
 
@@ -269,7 +262,7 @@ test('Gmail can supply missing evidence without authorizing a new action', async
         });
     };
 
-    engine.accept({
+    await engine.accept({
         id: 'mail-intake',
         owner: '+12025550142',
         spaceId: 'web:test',
@@ -286,7 +279,6 @@ test('Gmail can supply missing evidence without authorizing a new action', async
         1,
     );
 });
-
 test('the first iMessage cannot reuse a workspace rehearsal or web request', async () => {
     const { store, voice, engine } = setup();
 
@@ -302,14 +294,14 @@ test('the first iMessage cannot reuse a workspace rehearsal or web request', asy
             ready: true,
             reply: 'Ready',
         });
-    engine.accept({
+    await engine.accept({
         id: 'web-first',
         owner: '+12025550142',
         spaceId: 'web:test',
         text: 'Cancel my appointment',
     });
     await engine.idle();
-    engine.accept({
+    await engine.accept({
         id: 'imessage-first',
         owner: '+12025550142',
         spaceId: 'imessage:test',
@@ -327,7 +319,6 @@ test('the first iMessage cannot reuse a workspace rehearsal or web request', asy
             .some((job) => JSON.parse(job.body).spaceId === 'imessage:test'),
     );
 });
-
 test('concurrent start requests cannot dial the same case twice', async () => {
     const { store, voice, engine } = setup();
 
@@ -339,7 +330,7 @@ test('concurrent start requests cannot dial the same case twice', async () => {
             phone_number: engine.config.TWILIO_PHONE_NUMBER,
             assigned_agent: { agent_id: engine.config.ELEVENLABS_AGENT_ID },
         }) as T;
-    store.saveCase({
+    await store.saveCase({
         id: 'one-call',
         owner: '+12025550142',
         spaceId: 'web:test',
@@ -388,10 +379,9 @@ test('concurrent start requests cannot dial the same case twice', async () => {
         1,
     );
 });
-
 test('SIP stop revokes authority immediately and waits for observed hangup', async () => {
     const { store, engine } = setup();
-    const c = store.saveCase({
+    const c = await store.saveCase({
         id: 'sip-stop',
         owner: '+12025550142',
         spaceId: 'web:test',
@@ -410,13 +400,14 @@ test('SIP stop revokes authority immediately and waits for observed hangup', asy
         sipCallId: 'sip-1',
         callToken: 'test-secret',
     });
-    const decision = engine.decisions.request(c, 'Pay $25?');
+    const decision = await engine.decisions.request(c, 'Pay $25?');
 
     await engine.stop(c.id);
     assert.ok(store.case(c.id)?.stopRequestedAt);
     assert.notEqual(store.case(c.id)?.status, 'cancelled');
-    assert.throws(
-        () => engine.decisions.answer(c.owner, `YES ${decision.id}`),
+    await assert.rejects(
+        async () =>
+            await engine.decisions.answer(c.owner, `YES ${decision.id}`),
         /call has ended/,
     );
 
@@ -426,16 +417,22 @@ test('SIP stop revokes authority immediately and waits for observed hangup', asy
         confirmation: '123',
     });
 
-    assert.equal((result as { stop_requested: boolean }).stop_requested, true);
+    assert.equal(
+        (
+            result as {
+                stop_requested: boolean;
+            }
+        ).stop_requested,
+        true,
+    );
     assert.notEqual(store.case(c.id)?.status, 'resolved');
-    new CallMonitor(engine).apply(c.id, {
+    await new CallMonitor(engine).apply(c.id, {
         conversation_id: 'sip-conversation',
         status: 'done',
     });
     assert.equal(store.case(c.id)?.status, 'cancelled');
     assert.equal(store.case(c.id)?.callToken, undefined);
 });
-
 test('a general inquiry skips Gmail even when the account is connected', async () => {
     const { engine, voice, store } = setup();
     let searches = 0;
@@ -460,7 +457,7 @@ test('a general inquiry skips Gmail even when the account is connected', async (
             needsEmail: false,
             reply: 'Ready.',
         });
-    engine.accept({
+    await engine.accept({
         id: 'stock-inquiry',
         owner: '+12025550142',
         spaceId: 'web:test',
