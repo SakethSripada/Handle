@@ -46,30 +46,6 @@ export function Connections({ state, busy, action, gmail, setState }: Props) {
                         )
                     }
                 >
-                    <div className="connection-card">
-                        <h2>Delivery and storage</h2>
-                        <p>
-                            Messages and cloud updates are saved locally and
-                            retried after a connection interruption.
-                        </p>
-                        <div className="service">
-                            <span>Texts awaiting delivery</span>
-                            <span className="tag">
-                                {state.queues?.messages.pending ?? 0}
-                            </span>
-                        </div>
-                        <div className="service">
-                            <span>Cloud updates pending</span>
-                            <span className="tag">
-                                {state.queues?.replication.pending ?? 0}
-                            </span>
-                        </div>
-                        <small>
-                            {state.services.lastSyncedAt
-                                ? `Last cloud write: ${new Date(state.services.lastSyncedAt).toLocaleTimeString()}`
-                                : 'Cloud writes appear here after the next case update.'}
-                        </small>
-                    </div>
                     {state.services.gmail === 'connected'
                         ? 'Disconnect Gmail'
                         : 'Connect Gmail'}
@@ -101,6 +77,30 @@ export function Connections({ state, busy, action, gmail, setState }: Props) {
                         </span>
                     </div>
                 ))}
+            </div>
+            <div className="connection-card">
+                <h2>Delivery and storage</h2>
+                <p>
+                    Messages and cloud updates are saved locally and retried
+                    after a connection interruption.
+                </p>
+                <div className="service">
+                    <span>Texts awaiting delivery</span>
+                    <span className="tag">
+                        {state.queues?.messages.pending ?? 0}
+                    </span>
+                </div>
+                <div className="service">
+                    <span>Cloud updates pending</span>
+                    <span className="tag">
+                        {state.queues?.replication.pending ?? 0}
+                    </span>
+                </div>
+                <small>
+                    {state.services.lastSyncedAt
+                        ? `Last cloud write: ${new Date(state.services.lastSyncedAt).toLocaleTimeString()}`
+                        : 'Cloud writes appear here after the next case update.'}
+                </small>
             </div>
             {state.services.gmail === 'connected' && (
                 <div className="mail-search">

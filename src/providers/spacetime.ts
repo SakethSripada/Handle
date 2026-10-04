@@ -11,6 +11,8 @@ export class Spacetime {
         private config: Config,
         private store: Store,
     ) {
+        this.lastSyncedAt = store.get<number>('service', 'cloud-last-synced');
+
         if (config.SPACETIMEDB_TOKEN && config.SPACETIMEDB_DATABASE) {
             this.status = 'configured';
         }
@@ -46,6 +48,11 @@ export class Spacetime {
                 );
                 this.store.finishJob(job.id, job.body);
                 this.lastSyncedAt = Date.now();
+                this.store.put(
+                    'service',
+                    'cloud-last-synced',
+                    this.lastSyncedAt,
+                );
                 this.status = 'connected';
                 this.lastError = undefined;
             } catch (error) {
