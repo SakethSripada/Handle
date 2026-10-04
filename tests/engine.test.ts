@@ -262,6 +262,7 @@ test('Gmail can supply missing evidence without authorizing a new action', async
             phone: '7345550100',
             customerName: 'Alex',
             context: data.emailEvidence.length ? 'Tomorrow at 2pm' : '',
+            needsEmail: true,
             authorization: 'No fees',
             ready: !!data.emailEvidence.length,
             reply: 'What time is the appointment?',
@@ -433,4 +434,40 @@ test('SIP stop revokes authority immediately and waits for observed hangup', asy
     });
     assert.equal(store.case(c.id)?.status, 'cancelled');
     assert.equal(store.case(c.id)?.callToken, undefined);
+});
+
+test('a general inquiry skips Gmail even when the account is connected', async () => {
+    const { engine, voice, store } = setup();
+    let searches = 0;
+
+    engine.gmail.connected = () => true;
+    engine.gmail.search = async () => {
+        searches++;
+
+        return [];
+    };
+
+    voice.text = async () =>
+        JSON.stringify({
+            title: 'Check stock',
+            goal: 'Ask whether USB-C chargers are in stock',
+            business: 'Electronics store',
+            phone: '+12025550110',
+            customerName: '',
+            context: '',
+            authorization: 'Ask about stock; do not purchase',
+            ready: true,
+            needsEmail: false,
+            reply: 'Ready.',
+        });
+    engine.accept({
+        id: 'stock-inquiry',
+        owner: '+12025550142',
+        spaceId: 'web:test',
+        text: 'Call the shop and ask if they have USB-C chargers.',
+    });
+    await engine.idle();
+    assert.equal(searches, 0);
+    assert.equal(store.cases()[0].status, 'ready');
+    assert.equal(store.cases()[0].customerName, '');
 });

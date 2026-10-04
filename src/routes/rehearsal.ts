@@ -14,7 +14,7 @@ export function rehearsal(engine: Engine) {
     router.post('/:id/rehearse', async (req, res) => {
         const source = store.case(String(req.params.id));
 
-        if (!source || !source.goal || !source.customerName) {
+        if (!source || !source.goal) {
             throw new Error('Gather the request details first.');
         }
 

@@ -131,3 +131,49 @@ test('verification outages leave a follow-up without creating recallable success
     assert.equal(store.case(c.id)?.confirmedAt, undefined);
     store.db.close();
 });
+
+test('a short recipient answer can resolve an information request', async () => {
+    const result = await verifyOutcome(
+        async () =>
+            JSON.stringify({
+                resolved: true,
+                summary: 'The store closes at 6pm.',
+                confirmation: '6pm.',
+                reason: '',
+            }),
+        {
+            ...c,
+            goal: 'Ask what time the store closes',
+            authorization: 'Ask only',
+        },
+        [
+            { role: 'agent', message: 'What time do you close today?' },
+            { role: 'user', message: '6pm.' },
+        ],
+        [],
+    );
+
+    assert.equal(result.resolved, true);
+});
+
+test('short quotes must match a complete recipient turn, not a fragment', async () => {
+    const result = await verifyOutcome(
+        async () =>
+            JSON.stringify({
+                resolved: true,
+                summary: 'Open now.',
+                confirmation: 'yes',
+                reason: '',
+            }),
+        { ...c, goal: 'Ask whether the store is open now' },
+        [
+            {
+                role: 'user',
+                message: 'We were open yesterday but are closed now.',
+            },
+        ],
+        [],
+    );
+
+    assert.equal(result.resolved, false);
+});

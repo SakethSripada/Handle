@@ -42,12 +42,14 @@ export async function verifyOutcome(
     );
     const quote = normalize(verdict.confirmation);
     const grounded =
-        quote.length >= 12 &&
+        quote.length > 0 &&
         transcript.some(
             (t) =>
                 t.role === 'user' &&
                 t.message &&
-                normalize(t.message).includes(quote),
+                (quote.length < 12
+                    ? normalize(t.message) === quote
+                    : normalize(t.message).includes(quote)),
         );
 
     if (verdict.resolved && !grounded) {

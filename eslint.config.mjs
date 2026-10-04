@@ -10,6 +10,7 @@ export default [
             '.data/**',
             'spacetimedb/node_modules/**',
             'spacetimedb/dist/**',
+            'landing/**',
         ],
     },
     {
