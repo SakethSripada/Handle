@@ -47,7 +47,7 @@ Set `ELEVENLABS_API_KEY`, then run:
 npm run setup:voice
 ```
 
-This creates or updates the text planner, voice agent, and case-specific tools. Run it again whenever `PUBLIC_URL` changes.
+This creates or updates the text planner, voice agent, outcome verifier, and case-specific tools. Run it again whenever `PUBLIC_URL` changes.
 
 Browser rehearsals use the actual voice agent and consume ElevenLabs credits.
 
@@ -89,7 +89,11 @@ npm run setup:phone -- --connect
 
 Restart Handle, open **Connections**, and review the checks before enabling calls. Enabling calls allows ready requests to dial automatically.
 
-Twilio trial accounts restrict calls to verified recipients. The number displayed in a trial walkthrough may not be an owned number available for import.
+Use a paid Twilio account for ElevenLabs voice calls: current trials block its audio streaming. A trial walkthrough number may also be unavailable for import.
+
+### Photon voice — alternative
+
+The Photon SIP adapter is prepared alongside Twilio. It needs confirmed voice access and a project-owned iMessage line. Run `npm run setup:photon` for a read-only preflight. Follow the [voice setup and test guide](VOICE.md) before connecting the trunk or enabling calls.
 
 ### Gmail — optional
 
@@ -122,6 +126,8 @@ npm test
 npm run doctor
 ```
 
+`doctor` checks authentication and compares local case/event records against SpacetimeDB without printing private contents. **Connections** shows pending message deliveries and cloud writes.
+
 Use **Connections** for live provider checks. Keep calls paused until the caller number and intended test recipient are ready.
 
 ## Storage and access
@@ -131,3 +137,11 @@ Use **Connections** for live provider checks. Keep calls paused until the caller
 - `work` contains local development files.
 
 All three are ignored by Git. Do not publish their contents or share the dashboard token with demo participants. The current dashboard is an operator workspace that can view all enrolled users' requests.
+
+## Past call memory
+
+After a call, a separate verifier checks the proposed outcome against the business transcript. A successful result must include a matching business quote. Only then can the outcome become memory. If verification is unavailable or inconclusive, the case needs follow-up.
+
+Handle recalls up to three confirmed outcomes from the last 90 days, restricted to the same enrolled user, business name, and business phone. Rehearsals and unconfirmed outcomes are excluded. Past approvals never authorize a new action.
+
+In a completed case's **Context** tab, choose **Exclude from future recall** to stop reuse. This preserves the original case record; it does not delete transcripts or recall already supplied to an active conversation. Memory fields and exclusion choices replicate with the private case record in SpacetimeDB. This is retrieval of past outcomes, not model training.
