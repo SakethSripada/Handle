@@ -13,6 +13,7 @@
     "check": "npm run format:check && npm run lint && tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "check:intake": "tsx --env-file=.env scripts/check-intake.ts",
+    "check:outcomes": "tsx --env-file=.env scripts/check-outcomes.ts",
     "setup:voice": "tsx --env-file=.env scripts/setup-voice.ts",
     "doctor": "tsx --env-file=.env scripts/doctor.ts",
     "format": "eslint . --fix && stylelint \"web/**/*.css\" --fix && prettier --write .",

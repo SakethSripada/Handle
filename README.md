@@ -78,7 +78,11 @@ npm test        # Run isolated tests
 npm run doctor  # Check the running service without placing a call
 ```
 
-`npm run check:intake` checks varied requests against the configured ElevenLabs planner. It uses fictional inputs and consumes agent credits, but never places a phone call.
+Add `GEMINI_API_KEY` to `.env` to use Gemini directly for intake and outcome verification, then restart the server. With `TEXT_PROVIDER=auto` (the default), an absent key keeps the ElevenLabs text agents active. Set `TEXT_PROVIDER=elevenlabs` to select them explicitly. Voice conversations continue through ElevenLabs. The direct model defaults to `gemini-3.8-flash` and can be changed with `GEMINI_MODEL`.
+
+`npm run check:intake` checks varied requests against the selected text provider. It uses fictional inputs and consumes provider quota, but never places a phone call. Provider failures surface as errors; Handle does not silently switch providers or approve an unverified outcome.
+
+`npm run check:outcomes` checks the selected verifier against fictional transcripts: a short answer, a promise, a confirmed action, and an unauthorized fee.
 
 Active development is pushed to `dev`; changes reach `main` through reviewed pull requests.
 

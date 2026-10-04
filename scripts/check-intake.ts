@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
+import { setTimeout as delay } from 'node:timers/promises';
 import { loadConfig } from '../src/config.js';
 import { planIntake } from '../src/core/intake.js';
 import type { Case } from '../src/core/model.js';
 import { ElevenLabs } from '../src/providers/elevenlabs.js';
+import { TextAgents } from '../src/providers/text-agents.js';
 
 // Opt-in check against the hosted planner. Uses fictional inputs and never dials.
-const voice = new ElevenLabs(loadConfig());
+const config = loadConfig();
+const text = new TextAgents(config, new ElevenLabs(config));
+
+console.log(`Checking intake through ${text.provider}.`);
+
 const blank: Case = {
     id: 'intake-check',
     owner: '+12025550142',
@@ -72,10 +78,15 @@ const scenarios = [
     },
 ];
 
-for (const scenario of scenarios) {
+for (const [index, scenario] of scenarios.entries()) {
+    // Space opt-in checks to leave room for free-tier inference limits.
+    if (text.provider === 'gemini' && index > 0) {
+        await delay(15000);
+    }
+
     try {
         const c = { ...blank, ...scenario.existing };
-        const plan = await planIntake((p) => voice.text(p), c, [
+        const plan = await planIntake((p) => text.intake(p), c, [
             {
                 id: scenario.name,
                 caseId: c.id,

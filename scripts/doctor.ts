@@ -28,6 +28,7 @@ async function main() {
         'photon',
         'voice',
         'intake',
+        'textProvider',
         'calling',
         'spacetime',
         'gmail',
