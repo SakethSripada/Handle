@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { request, statusLabels, type State, type Case } from './types.js';
 import './style.css';
+import { Rehearsal } from './Rehearsal.js';
 
 function App() {
     const [state, setState] = useState<State>();
@@ -581,6 +582,11 @@ function App() {
                                                     </div>
                                                 </div>
                                             ))}
+                                        <Rehearsal
+                                            caseId={c.id}
+                                            onStarted={setSelected}
+                                            onError={setError}
+                                        />
                                         <div className="tabs">
                                             <button
                                                 className={

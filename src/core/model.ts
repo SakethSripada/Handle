@@ -14,6 +14,7 @@ export type CaseStatus =
     | 'cancelled';
 
 export interface Case {
+    mode?: 'rehearsal';
     id: string;
     owner: string;
     spaceId: string;
@@ -54,6 +55,7 @@ export interface Approval {
 }
 
 export interface Incoming {
+    mode?: 'rehearsal';
     id: string;
     owner: string;
     spaceId: string;

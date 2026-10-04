@@ -1391,3 +1391,42 @@ footer span:last-child {
         font-size: 26px;
     }
 }
+
+.rehearsal {
+    margin-top: 18px;
+    border: 1px dashed #dbe4cb;
+    border-radius: 7px;
+    padding: 13px;
+}
+
+.rehearsal > div {
+    display: flex;
+    gap: 9px;
+    color: #7c9068;
+    align-items: center;
+}
+
+.rehearsal strong {
+    font-size: 10px;
+    display: block;
+    font-weight: 500;
+}
+
+.rehearsal small {
+    display: block;
+    font-size: 8px;
+    margin-top: 4px;
+    color: #98a788;
+}
+
+.rehearsal button {
+    margin-top: 12px;
+    background: #eaf0df;
+    color: #657d50;
+    border-radius: 5px;
+    padding: 7px 11px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 9px;
+}

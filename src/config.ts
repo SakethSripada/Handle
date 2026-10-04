@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 const schema = z.object({
     CALLING_ENABLED: z.enum(['true', 'false']).default('false'),
-    PORT: z.coerce.number().default(4310),
-    PUBLIC_URL: z.string().url().default('http://localhost:4310'),
+    PORT: z.coerce.number().default(4327),
+    PUBLIC_URL: z.string().url().default('http://localhost:4327'),
     DASHBOARD_TOKEN: z.string().min(24),
     ENCRYPTION_KEY: z.string().regex(/^[a-f0-9]{64}$/),
     PHOTON_PROJECT_ID: z.string().default(''),

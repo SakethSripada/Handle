@@ -125,6 +125,9 @@ const systemTool = (name: string) => ({
 });
 
 const platform_settings = {
+    overrides: {
+        conversation_config_override: { conversation: { text_only: true } },
+    },
     auth: { enable_auth: true },
     privacy: { record_voice: false, retention_days: 7 },
     call_limits: { agent_concurrency_limit: 2 },

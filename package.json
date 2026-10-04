@@ -15,6 +15,7 @@
     "setup:voice": "tsx --env-file=.env scripts/setup-voice.ts"
   },
   "dependencies": {
+    "@elevenlabs/client": "^1.26.0",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
     "lucide-react": "^1.51.0",
@@ -32,6 +33,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.1.1",
+    "prettier": "^3.9.9",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vite": "^8.3.2"

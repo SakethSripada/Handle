@@ -9,6 +9,7 @@ import { Gmail } from './providers/gmail.js';
 import { Photon } from './providers/photon.js';
 import { Spacetime } from './providers/spacetime.js';
 import { callbacks } from './routes/callbacks.js';
+import { rehearsal } from './routes/rehearsal.js';
 import { api } from './routes/api.js';
 import { sessionLogin } from './routes/auth.js';
 
@@ -62,6 +63,8 @@ app.get('/health', (_req, res) => res.json({ ok: true, service: 'handle' }));
 
 app.post('/api/login', sessionLogin(config, store));
 
+app.use('/api/cases', rehearsal(engine));
+
 app.use('/api', api(engine, photon, spacetime));
 
 app.use('/tools', callback.toolHandler);
@@ -87,11 +90,16 @@ app.use(
     },
 );
 
-const server = app.listen(config.PORT, '127.0.0.1', () =>
+const server = app.listen(config.PORT, '127.0.0.1', (error?: Error) => {
+    if (error) {
+        console.error(error);
+        process.exit(1);
+    }
+
     console.log(
         `Handle listening on http://localhost:${config.PORT}; calls ${config.CALLING_ENABLED === 'true' ? 'enabled' : 'paused'}`,
-    ),
-);
+    );
+});
 
 void photon
     .connect((input) => engine.accept(input))
