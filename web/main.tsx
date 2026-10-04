@@ -128,7 +128,7 @@ function App() {
         ['dialing', 'in_call', 'waiting_approval'].includes(c.status),
     ).length;
     const done = state.cases.filter(
-        (c) => c.status === 'resolved' && c.mode !== 'rehearsal',
+        (c) => c.status === 'resolved' && !c.mode,
     ).length;
     const messages = state.events.filter(
         (e) => e.caseId === c?.id && e.kind === 'message',

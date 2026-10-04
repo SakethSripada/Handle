@@ -31,6 +31,7 @@ export const statusLabels: Record<string, string> = {
     waiting_approval: 'Your decision',
     verifying: 'Verifying outcome',
     resolved: 'Handled',
+    completed: 'Demo finished',
     follow_up: 'Follow-up needed',
     failed: 'Needs attention',
     cancelled: 'Stopped',

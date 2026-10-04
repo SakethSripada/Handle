@@ -52,6 +52,24 @@ For a useful comparison, call the same consenting test recipient with the same a
 
 ## First live test
 
+### Conversation with a judge
+
+Ask the judge whether they would like to receive a short AI demo call, then text Handle:
+
+```text
+Demo call +1 202 555 0110
+```
+
+Replace the fictional number with the judge's number. They do not need a Handle account to answer a phone call; the carrier must permit calling that destination without recipient verification.
+
+Handle introduces itself as an AI and asks whether it is a good time. The judge can chat, ask about Handle, or try a fictional role-play. This mode cannot read Gmail, retrieve private call history, or request payment approvals. It saves the conversation transcript and sends a completion text. It never marks a customer-service problem resolved.
+
+If calling is paused, the text prepares a request without dialing. Connect the line and choose **Start call** on that request. Enabling calling alone does not dial queued requests. Try this with your own phone before presenting it to a judge.
+
+Keep the server and public tunnel running, and prevent the demo laptop from sleeping. A replacement tunnel needs an updated `PUBLIC_URL` and `npm run setup:voice`, followed by a server restart. `npm run doctor` checks the public endpoint, agent access, messaging connection, delivery queues, and SpacetimeDB parity. Gmail and an unconfigured voice line are shown as waiting; other failed checks need attention before the demo.
+
+### Customer-service scenario
+
 1. Run `npm run doctor`. Verify empty delivery queues and matching SpacetimeDB records.
 2. Confirm your phone can text Handle and receive a reply. Keep the caller line separate from the customer's enrolled number.
 3. Prepare a consenting test recipient acting as a business. Use fictional appointment details and no payment.

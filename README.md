@@ -36,6 +36,8 @@ The hosted demo is currently invite-only; there is no public number to text yet.
 
 For a local voice demo, create a request in the dashboard and choose **Browser rehearsal**. You play the business representative while Handle handles the request. Try confirming a free cancellation, then introducing a fee to see the approval flow.
 
+Once a voice line is connected, an enrolled user can text `Demo call` followed by a consenting participant's phone number. Handle introduces itself and has a short conversation without asking for reservation details. Demo calls cannot access email or customer history and do not count as resolved customer-service requests. While calling is paused, the command prepares the demo for a manual start from the dashboard.
+
 ## Run locally
 
 Requires **Node.js 24 or newer** and credentials for the services you want to use.

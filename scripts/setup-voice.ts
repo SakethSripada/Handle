@@ -141,14 +141,14 @@ const voiceConfig = {
     name: 'Handle · customer advocate',
     conversation_config: {
         agent: {
-            first_message:
-                'Hi, this is Handle, an AI assistant calling on behalf of {{customer_name}}. I’m hoping you can help with a customer-service request.',
+            first_message: '{{opening_message}}',
             language: 'en',
             dynamic_variables: {
                 dynamic_variable_placeholders: {
                     case_id: 'unconfigured',
                     secret__case_token: 'unconfigured',
                     customer_name: 'the customer',
+                    opening_message: 'Hi, this is Handle, an AI assistant.',
                     case_context: 'No case is configured. Do not take action.',
                 },
             },

@@ -18,7 +18,7 @@ export function recallCalls(
     current: Case,
     now = Date.now(),
 ): CallMemory[] {
-    if (!current.business.trim() || !current.phone) {
+    if (current.mode === 'demo' || !current.business.trim() || !current.phone) {
         return [];
     }
 
@@ -28,7 +28,7 @@ export function recallCalls(
             (c) =>
                 c.id !== current.id &&
                 c.owner === current.owner &&
-                c.mode !== 'rehearsal' &&
+                !c.mode &&
                 c.status === 'resolved' &&
                 !c.memoryExcluded &&
                 c.confirmedAt &&

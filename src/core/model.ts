@@ -12,12 +12,13 @@ export type CaseStatus =
     | (typeof activeStatuses)[number]
     | 'verifying'
     | 'resolved'
+    | 'completed'
     | 'follow_up'
     | 'failed'
     | 'cancelled';
 
 export interface Case {
-    mode?: 'rehearsal';
+    mode?: 'rehearsal' | 'demo';
     id: string;
     owner: string;
     spaceId: string;
