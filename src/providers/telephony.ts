@@ -61,19 +61,9 @@ export class Telephony {
         }
 
         if (info.type === 'Trial') {
-            const verified = await this.client().outgoingCallerIds.list({
-                phoneNumber: phone,
-                limit: 1,
-            });
-
-            if (
-                !verified.length &&
-                !info.numbers.some((number) => number.phoneNumber === phone)
-            ) {
-                throw new Error(
-                    'This Twilio trial can only call verified test recipients. Verify the recipient or upgrade before calling a business.',
-                );
-            }
+            throw new Error(
+                'Twilio trial accounts block the audio streaming used by ElevenLabs. Upgrade before native voice tests.',
+            );
         }
     }
 }

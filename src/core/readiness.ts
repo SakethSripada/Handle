@@ -1,6 +1,6 @@
 import type { Engine } from './engine.js';
 import type { Photon } from '../providers/photon.js';
-import { Telephony } from '../providers/telephony.js';
+import { checkVoiceRoute } from '../providers/voice-routing.js';
 import { jsonRequest } from '../providers/http.js';
 
 export interface ConnectionCheck {
@@ -66,57 +66,21 @@ export async function checkReadiness(engine: Engine, photon: Photon) {
         })(),
         (async () => {
             try {
-                const info = await new Telephony(config).inspect();
-
-                if (!info.active || !info.numbers.length) {
-                    checks.push({
-                        name: 'Phone calling',
-                        status: 'action',
-                        detail: 'Twilio has no active owned voice number. The trial demo number cannot be imported.',
-                    });
-
-                    return;
-                }
-
-                if (!config.ELEVENLABS_PHONE_NUMBER_ID) {
-                    checks.push({
-                        name: 'Phone calling',
-                        status: 'action',
-                        detail: 'An owned voice number is available. Connect it with npm run setup:phone -- --connect.',
-                    });
-
-                    return;
-                }
-
-                const linked = await voice.request<{
-                    phone_number: string;
-                    assigned_agent?: { agent_id: string };
-                }>(
-                    `/convai/phone-numbers/${config.ELEVENLABS_PHONE_NUMBER_ID}`,
-                );
-
-                phoneReady =
-                    linked.assigned_agent?.agent_id ===
-                        config.ELEVENLABS_AGENT_ID &&
-                    info.numbers.some(
-                        (number) =>
-                            number.phoneNumber === linked.phone_number &&
-                            number.phoneNumber === config.TWILIO_PHONE_NUMBER,
-                    );
+                await checkVoiceRoute(config, voice, engine.telephony);
+                phoneReady = true;
                 checks.push({
                     name: 'Phone calling',
-                    status: phoneReady ? 'ready' : 'action',
-                    detail: phoneReady
-                        ? info.type === 'Trial'
-                            ? 'Connected. Trial calls are limited to verified recipients.'
-                            : 'Connected to an active Twilio voice number.'
-                        : 'Check that the Twilio number is connected to the Handle agent in ElevenLabs.',
+                    status: 'ready',
+                    detail:
+                        config.VOICE_PROVIDER === 'photon'
+                            ? 'Photon SIP configuration is connected. Two-way audio still needs a live test.'
+                            : 'Connected to an active paid Twilio voice number.',
                 });
-            } catch {
+            } catch (error) {
                 checks.push({
                     name: 'Phone calling',
-                    status: 'unavailable',
-                    detail: 'Check the Twilio credentials and ElevenLabs number connection.',
+                    status: 'action',
+                    detail: (error as Error).message,
                 });
             }
         })(),
@@ -155,7 +119,7 @@ export async function checkReadiness(engine: Engine, photon: Photon) {
             photon.status === 'connected'
                 ? photon.lastInboundAt
                     ? 'Connected and an enrolled message has been received.'
-                    : 'SDK connected. Complete Photon phone verification, then send the first text to verify delivery.'
+                    : 'SDK connected. Enroll your phone under Photon Users, then send the first text to verify delivery.'
                 : (photon.lastError ?? 'Save Photon credentials to connect.'),
     });
     checks.push({
@@ -169,6 +133,7 @@ export async function checkReadiness(engine: Engine, photon: Photon) {
     });
 
     return {
+        voiceProvider: config.VOICE_PROVIDER,
         checkedAt: Date.now(),
         canEnableCalling: phoneReady && voiceReady && publicReady,
         callingEnabled: config.CALLING_ENABLED === 'true',

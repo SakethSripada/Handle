@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import type { Config } from '../config.js';
 import type { Case } from '../core/model.js';
+import { voiceNumberId } from './voice-routing.js';
 import { jsonRequest } from './http.js';
 
 export interface Conversation {
@@ -37,7 +38,10 @@ export class ElevenLabs {
     }
 
     async startCall(c: Case) {
-        if (!this.config.ELEVENLABS_PHONE_NUMBER_ID) {
+        const provider = c.voiceProvider ?? this.config.VOICE_PROVIDER;
+        const phoneId = voiceNumberId(this.config, provider);
+
+        if (!phoneId) {
             throw new Error(
                 'Phone calling is paused until a sender number is connected.',
             );
@@ -47,26 +51,35 @@ export class ElevenLabs {
             success: boolean;
             message: string;
             conversation_id: string;
-            callSid: string;
-        }>('/convai/twilio/outbound-call', 'POST', {
-            agent_id: this.config.ELEVENLABS_AGENT_ID,
-            agent_phone_number_id: this.config.ELEVENLABS_PHONE_NUMBER_ID,
-            to_number: c.phone,
-            call_recording_enabled: false,
-            conversation_initiation_client_data: {
-                dynamic_variables: {
-                    case_id: c.id,
-                    secret__case_token: c.callToken,
-                    customer_name: c.customerName,
-                    case_context: JSON.stringify({
-                        goal: c.goal,
-                        business: c.business,
-                        context: c.context,
-                        authorization: c.authorization,
-                    }),
+            callSid?: string;
+            sip_call_id?: string;
+        }>(
+            provider === 'photon'
+                ? '/convai/sip-trunk/outbound-call'
+                : '/convai/twilio/outbound-call',
+            'POST',
+            {
+                agent_id: this.config.ELEVENLABS_AGENT_ID,
+                agent_phone_number_id: phoneId,
+                to_number: c.phone,
+                ...(provider === 'twilio'
+                    ? { call_recording_enabled: false }
+                    : {}),
+                conversation_initiation_client_data: {
+                    dynamic_variables: {
+                        case_id: c.id,
+                        secret__case_token: c.callToken,
+                        customer_name: c.customerName,
+                        case_context: JSON.stringify({
+                            goal: c.goal,
+                            business: c.business,
+                            context: c.context,
+                            authorization: c.authorization,
+                        }),
+                    },
                 },
             },
-        });
+        );
 
         if (!result.success) {
             throw new Error(result.message || 'The call could not be started.');

@@ -30,7 +30,10 @@ export interface Case {
     createdAt: number;
     updatedAt: number;
     conversationId?: string;
+    voiceProvider?: 'twilio' | 'photon';
     callSid?: string;
+    sipCallId?: string;
+    stopRequestedAt?: number;
     callToken?: string;
     outcome?: string;
 }
