@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 const schema = z.object({
+    VOICE_PROVIDER: z.enum(['twilio', 'photon']).default('twilio'),
+    PHOTON_VOICE_ENABLED: z.enum(['true', 'false']).default('false'),
+    PHOTON_VOICE_NUMBER: z.string().default(''),
+    PHOTON_ELEVENLABS_PHONE_NUMBER_ID: z.string().default(''),
     CALLING_ENABLED: z.enum(['true', 'false']).default('false'),
     PORT: z.coerce.number().default(4327),
     PUBLIC_URL: z.string().url().default('http://localhost:4327'),

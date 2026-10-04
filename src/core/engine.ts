@@ -8,6 +8,7 @@ import { Decisions } from './decisions.js';
 import { ElevenLabs } from '../providers/elevenlabs.js';
 import { Gmail } from '../providers/gmail.js';
 import twilio from 'twilio';
+import { checkVoiceRoute, voiceNumberId } from '../providers/voice-routing.js';
 import { Telephony } from '../providers/telephony.js';
 
 export class Engine {
@@ -281,7 +282,7 @@ export class Engine {
         if (plan.ready) {
             if (
                 this.config.CALLING_ENABLED === 'true' &&
-                this.config.ELEVENLABS_PHONE_NUMBER_ID
+                voiceNumberId(this.config)
             ) {
                 this.notify(
                     c,
@@ -312,9 +313,14 @@ export class Engine {
             );
         }
 
-        await this.telephony.validateDestination(c.phone);
+        const provider = this.config.VOICE_PROVIDER;
 
-        if (this.config.CALLING_ENABLED !== 'true') {
+        await checkVoiceRoute(this.config, this.voice, this.telephony, c.phone);
+
+        if (
+            this.config.CALLING_ENABLED !== 'true' ||
+            this.config.VOICE_PROVIDER !== provider
+        ) {
             throw new Error(
                 'Real calls were paused while checking the phone connection.',
             );
@@ -332,6 +338,7 @@ export class Engine {
             );
         }
 
+        c.voiceProvider = provider;
         c.status = 'dialing';
         c.callToken = token();
         this.store.saveCase(c);
@@ -351,6 +358,7 @@ export class Engine {
                 ...current,
                 conversationId: result.conversation_id,
                 callSid: result.callSid,
+                sipCallId: result.sip_call_id,
             });
         } catch (error) {
             this.store.saveCase({

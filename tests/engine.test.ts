@@ -330,6 +330,13 @@ test('concurrent start requests cannot dial the same case twice', async () => {
     const { store, voice, engine } = setup();
 
     engine.config.CALLING_ENABLED = 'true';
+    engine.config.ELEVENLABS_PHONE_NUMBER_ID = 'phone-test';
+    voice.request = async <T>() =>
+        ({
+            provider: 'twilio',
+            phone_number: engine.config.TWILIO_PHONE_NUMBER,
+            assigned_agent: { agent_id: engine.config.ELEVENLABS_AGENT_ID },
+        }) as T;
     store.saveCase({
         id: 'one-call',
         owner: '+12025550142',

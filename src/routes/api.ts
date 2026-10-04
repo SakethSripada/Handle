@@ -6,6 +6,7 @@ import type { Engine } from '../core/engine.js';
 import type { Photon } from '../providers/photon.js';
 import type { Spacetime } from '../providers/spacetime.js';
 import { checkReadiness } from '../core/readiness.js';
+import { voiceNumberId } from '../providers/voice-routing.js';
 import { auth } from './auth.js';
 
 export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
@@ -30,7 +31,7 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
                 : 'not_configured',
             calling:
                 config.CALLING_ENABLED === 'true' &&
-                Boolean(config.ELEVENLABS_PHONE_NUMBER_ID),
+                Boolean(voiceNumberId(config)),
             spacetime: spacetime.status,
             lastSyncedAt: spacetime.lastSyncedAt,
             gmail: gmail.connected(owner())
