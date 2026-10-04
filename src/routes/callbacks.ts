@@ -1,10 +1,9 @@
 import { Router, raw } from 'express';
-import { z } from 'zod';
-import { equal, token, verifyElevenSignature } from '../core/crypto.js';
+import { equal, verifyElevenSignature } from '../core/crypto.js';
 import { VoiceTools } from '../core/voice-tools.js';
 import type { Engine } from '../core/engine.js';
 import type { CallMonitor } from '../core/call-monitor.js';
-import { cookie } from './auth.js';
+import { gmailOAuth } from './gmail-oauth.js';
 
 export function callbacks(engine: Engine, monitor: CallMonitor) {
     const router = Router();
@@ -44,37 +43,7 @@ export function callbacks(engine: Engine, monitor: CallMonitor) {
             res.json({ received: true });
         },
     );
-    router.get('/connect/gmail/:id', async (req, res) => {
-        const browserToken = token();
-        const url = await gmail.begin(String(req.params.id), browserToken);
-
-        res.cookie('handle_oauth', browserToken, {
-            httpOnly: true,
-            secure: config.PUBLIC_URL.startsWith('https:'),
-            sameSite: 'lax',
-            maxAge: 600000,
-        });
-        res.redirect(url);
-    });
-    router.get('/oauth/google/callback', async (req, res) => {
-        if (req.query.error) {
-            res.status(400).send(
-                'Gmail was not connected. You can return to Handle and try again.',
-            );
-
-            return;
-        }
-
-        const { state, code } = z
-            .object({ state: z.string(), code: z.string() })
-            .parse(req.query);
-
-        await gmail.callback(state, code, cookie(req, 'handle_oauth'));
-        res.clearCookie('handle_oauth');
-        res.type('html').send(
-            '<!doctype html><html><meta name="viewport" content="width=device-width"><title>Gmail connected · Handle</title><body style="background:#f5f4ed;color:#1a2923;font:20px system-ui;padding:10vw"><h1>Gmail is connected.</h1><p>Handle can now look up receipts, reservations, and confirmations relevant to your requests.</p><p>You can return to iMessage or close this tab.</p></body></html>',
-        );
-    });
+    router.use(gmailOAuth(config, gmail));
 
     return {
         router,

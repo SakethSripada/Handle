@@ -19,6 +19,8 @@ const plan = {
     authorization: 'Ask only',
     ready: true,
     needsEmail: false,
+    emailQuery: '',
+    emailOnly: false,
     reply: 'Ready.',
 };
 

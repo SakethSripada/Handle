@@ -3,8 +3,7 @@ import type { Config } from '../config.js';
 import type { Case, Incoming, Messenger } from './model.js';
 import { Store } from './store.js';
 import { token } from './crypto.js';
-import { recallCalls } from './memory.js';
-import { planIntake } from './intake.js';
+import { planRequest } from './email-intake.js';
 import { Decisions } from './decisions.js';
 import { ElevenLabs } from '../providers/elevenlabs.js';
 import { Gmail } from '../providers/gmail.js';
@@ -166,7 +165,9 @@ export class Engine {
                     'cancelled',
                     'follow_up',
                 ].includes(c.status) &&
-                !/^status|^connect|^(yes|no) /i.test(input.text) &&
+                !/^(?:status|connect|disconnect)\b|^(yes|no) /i.test(
+                    input.text,
+                ) &&
                 !demo
             ) {
                 await this.notify(
@@ -306,6 +307,23 @@ export class Engine {
             return;
         }
 
+        if (/^disconnect\s+(gmail|email)$/i.test(input.text.trim())) {
+            try {
+                await this.gmail.disconnect(input.owner);
+                await this.notify(
+                    c,
+                    'Gmail is disconnected. I can no longer fetch new emails. Details already saved in your requests remain. Text connect gmail to reconnect.',
+                );
+            } catch {
+                await this.notify(
+                    c,
+                    'Google could not confirm disconnection. Try disconnect gmail again, or remove Handle in your Google Account connections.',
+                );
+            }
+
+            return;
+        }
+
         if (/^status[?.!]?$/i.test(input.text.trim())) {
             await this.notify(
                 c,
@@ -341,58 +359,12 @@ export class Engine {
             return;
         }
 
-        let plan = await planIntake(
-            (p) => this.text.intake(p),
+        const plan = await planRequest(
+            this.store,
+            this.gmail,
+            (prompt) => this.text.intake(prompt),
             c,
-            this.store.events(c.id),
-            [],
-            recallCalls(this.store, c),
         );
-
-        if (
-            plan.needsEmail &&
-            plan.business &&
-            this.gmail.connected(c.owner) &&
-            !this.store.get('mail-searched', c.id)
-        ) {
-            await this.store.put('mail-searched', c.id, true);
-
-            try {
-                const business = plan.business.replace(/["\\]/g, '');
-                const emails = await this.gmail.search(
-                    c.owner,
-                    `"${business}" newer_than:1y`,
-                );
-
-                if (emails.length) {
-                    for (const email of emails) {
-                        await this.store.event(
-                            c.id,
-                            'email',
-                            'system',
-                            `${email.subject}\nFrom: ${email.from}\n${email.date}`,
-                            `email:${c.id}:${email.id}`,
-                        );
-                    }
-
-                    plan = await planIntake(
-                        (p) => this.text.intake(p),
-                        { ...c, ...plan },
-                        this.store.events(c.id),
-                        emails,
-                        recallCalls(this.store, { ...c, ...plan }),
-                    );
-                }
-            } catch {
-                await this.store.remove('mail-searched', c.id);
-                await this.store.event(
-                    c.id,
-                    'status',
-                    'system',
-                    'Email lookup was unavailable. Continuing with the details you provided.',
-                );
-            }
-        }
 
         Object.assign(c, {
             title: plan.title,

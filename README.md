@@ -91,7 +91,7 @@ Application logic lives in `src/core`, integrations in `src/providers`, and the 
 
 ## Privacy
 
-Credentials, local case data, and OAuth tokens are excluded from Git. Gmail tokens are encrypted locally. The dashboard requires authentication, and iMessage access is limited to explicitly allowed senders.
+Credentials, local case data, and OAuth tokens are excluded from Git. Gmail tokens are encrypted by the server before being stored in private SpacetimeDB state. The dashboard requires authentication, and iMessage access is limited to explicitly allowed senders.
 
 Handle is currently designed for a controlled demo. Public onboarding, per-user dashboard access, usage limits, and persistent hosting are required before opening it to everyone.
 
