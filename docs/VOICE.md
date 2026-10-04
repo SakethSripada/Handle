@@ -74,7 +74,7 @@ Replace the fictional number with the judge's number. They do not need a Handle 
 
 The upgraded Twilio route does not require judges to verify their number. US calling permissions must be enabled. Let them know the call comes from Handle's separate voice number, then have them answer it normally.
 
-Handle introduces itself as an AI and asks whether it is a good time. The judge can chat, ask about Handle, or try a fictional role-play. This mode cannot read Gmail, retrieve private call history, or request payment approvals. It saves the conversation transcript and sends a completion text. It never marks a customer-service problem resolved.
+Handle introduces itself as an AI, asks how the recipient has been enjoying MHacks, and follows their response. It avoids a product pitch or suggested role-play; it explains Handle or plays a fictional scenario only when asked. This mode cannot read Gmail, retrieve private call history, or request payment approvals. It saves the conversation transcript and sends a completion text. It never marks a customer-service problem resolved.
 
 If calling is paused, the text prepares a request without dialing. Connect the line and choose **Start call** on that request. Enabling calling alone does not dial queued requests. Try this with your own phone before presenting it to a judge.
 
