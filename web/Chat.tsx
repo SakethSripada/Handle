@@ -23,14 +23,9 @@ export function Chat({
 }: Props) {
     const end = useRef<HTMLDivElement>(null);
 
-    useEffect(
-        () =>
-            end.current?.scrollIntoView({
-                block: 'nearest',
-                behavior: 'smooth',
-            }),
-        [messages.length],
-    );
+    useEffect(() => {
+        end.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, [messages.length]);
 
     return (
         <section className="chat-panel">
