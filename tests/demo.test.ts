@@ -41,6 +41,9 @@ const input = {
 
 test('demo command accepts one explicit number and rejects ambiguous instructions', async () => {
     assert.equal(demoCommand(input.text)?.phone, '+12025550110');
+    assert.equal(demoCommand('Demo 202-555-0110')?.phone, '+12025550110');
+    assert.equal(demoCommand('Demo 2025550110 or 2025550111')?.phone, '');
+    assert.equal(demoCommand('Demo please')?.phone, '');
     assert.equal(
         demoCommand('Demo call +44 20 7946 0018')?.phone,
         '+442079460018',
@@ -82,10 +85,14 @@ test('a new demo does not overwrite a prepared customer-service request', async 
         title: 'Cancel appointment',
         context: 'Private reservation',
     });
-    await engine.accept({ ...input, id: 'second' });
+    await engine.accept({ ...input, id: 'second', text: 'Demo 202-555-0111' });
     await engine.idle();
     assert.equal(store.cases().length, 2);
     assert.equal(store.case(first.id)?.title, 'Cancel appointment');
+    assert.equal(
+        store.cases().find((c) => c.mode === 'demo')?.phone,
+        '+12025550111',
+    );
     assert.ok(
         !JSON.stringify(store.cases().find((c) => c.mode === 'demo')).includes(
             'Private reservation',
