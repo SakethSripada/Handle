@@ -2,11 +2,11 @@ import type { Case } from './model.js';
 import { normalizePhone } from './intake.js';
 
 export function demoCommand(text: string) {
-    if (!/^demo\s+call\b/i.test(text.trim())) {
+    if (!/^demo\b/i.test(text.trim())) {
         return undefined;
     }
 
-    const match = text.trim().match(/^demo\s+call\s+(\+?[\d ().-]+)$/i);
+    const match = text.trim().match(/^demo\s+(?:call\s+)?(\+?[\d ().-]+)$/i);
     const phone = match ? normalizePhone(match[1]) : '';
 
     return { phone };
