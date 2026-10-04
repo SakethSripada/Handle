@@ -1,3 +1,5 @@
+import type { Photon } from '../providers/photon.js';
+import { checkReadiness } from '../core/readiness.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { Engine } from '../core/engine.js';
@@ -18,7 +20,7 @@ const credentialSchema = z
     })
     .strict();
 
-export function settings(engine: Engine) {
+export function settings(engine: Engine, photon: Photon) {
     const router = Router();
 
     router.use(auth(engine.config, engine.store));
@@ -46,6 +48,27 @@ export function settings(engine: Engine) {
         Object.assign(engine.config, values);
         engine.store.emit('change');
         res.json({ saved: true });
+    });
+    router.post('/calling', async (req, res) => {
+        const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+
+        if (
+            enabled &&
+            !(await checkReadiness(engine, photon)).canEnableCalling
+        ) {
+            res.status(409).json({
+                error: 'Finish the phone and voice connection steps before enabling calls.',
+            });
+
+            return;
+        }
+
+        const value = enabled ? 'true' : 'false';
+
+        saveEnv({ CALLING_ENABLED: value });
+        engine.config.CALLING_ENABLED = value;
+        engine.store.emit('change');
+        res.json({ enabled });
     });
 
     return router;

@@ -2,6 +2,7 @@ import express from 'express';
 import { resolve } from 'node:path';
 import { loadConfig } from './config.js';
 import { Store } from './core/store.js';
+import { startWorker } from './core/worker.js';
 import { Engine } from './core/engine.js';
 import { CallMonitor } from './core/call-monitor.js';
 import { ElevenLabs } from './providers/elevenlabs.js';
@@ -66,7 +67,7 @@ app.post('/api/login', sessionLogin(config, store));
 
 app.use('/api/cases', rehearsal(engine));
 
-app.use('/api/settings', settings(engine));
+app.use('/api/settings', settings(engine, photon));
 app.use('/api', api(engine, photon, spacetime));
 
 app.use('/tools', callback.toolHandler);
@@ -112,41 +113,24 @@ void photon
 
 engine.resume();
 
-let working = false;
-let ticks = 0;
-
-const timer = setInterval(async () => {
-    if (working) {
-        return;
-    }
-
-    working = true;
-
-    try {
-        await engine.flushMessages({
+const stopWorkers = [
+    startWorker('Messages', 1000, () =>
+        engine.flushMessages({
             send: async (spaceId, text, line) => {
-                if (spaceId.startsWith('web:')) {
-                    return;
+                if (!spaceId.startsWith('web:')) {
+                    await photon.send(spaceId, text, line);
                 }
-
-                await photon.send(spaceId, text, line);
             },
-        });
-        await spacetime.flush();
-
-        if (++ticks % 5 === 0) {
-            await monitor.poll();
-        }
-    } catch (error) {
-        console.warn('Worker:', (error as Error).message);
-    } finally {
-        working = false;
-    }
-}, 1000);
+        }),
+    ),
+    startWorker('SpacetimeDB', 1000, () => spacetime.flush()),
+    startWorker('Call status', 5000, () => monitor.poll()),
+];
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
     process.on(signal, () => {
-        clearInterval(timer);
+        stopWorkers.forEach((stop) => stop());
+        void photon.stop();
         server.close(() => process.exit(0));
         setTimeout(() => process.exit(0), 3000).unref();
     });

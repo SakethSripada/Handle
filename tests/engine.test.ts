@@ -284,3 +284,98 @@ test('Gmail can supply missing evidence without authorizing a new action', async
         1,
     );
 });
+
+test('the first iMessage cannot reuse a workspace rehearsal or web request', async () => {
+    const { store, voice, engine } = setup();
+
+    voice.text = async () =>
+        JSON.stringify({
+            title: 'Cancel appointment',
+            goal: 'Cancel',
+            business: 'Salon',
+            phone: '2025550110',
+            customerName: 'Alex',
+            context: 'Tomorrow at 2pm',
+            authorization: 'No fees',
+            ready: true,
+            reply: 'Ready',
+        });
+    engine.accept({
+        id: 'web-first',
+        owner: '+12025550142',
+        spaceId: 'web:test',
+        text: 'Cancel my appointment',
+    });
+    await engine.idle();
+    engine.accept({
+        id: 'imessage-first',
+        owner: '+12025550142',
+        spaceId: 'imessage:test',
+        text: 'Cancel my appointment',
+    });
+    await engine.idle();
+    assert.equal(store.cases().length, 2);
+
+    const phoneCase = store.cases().find((c) => c.spaceId === 'imessage:test')!;
+
+    assert.equal(phoneCase.status, 'ready');
+    assert.ok(
+        store
+            .jobs('message')
+            .some((job) => JSON.parse(job.body).spaceId === 'imessage:test'),
+    );
+});
+
+test('concurrent start requests cannot dial the same case twice', async () => {
+    const { store, voice, engine } = setup();
+
+    engine.config.CALLING_ENABLED = 'true';
+    store.saveCase({
+        id: 'one-call',
+        owner: '+12025550142',
+        spaceId: 'web:test',
+        title: 'Cancel',
+        status: 'ready',
+        goal: 'Cancel',
+        business: 'Salon',
+        phone: '+12025550110',
+        customerName: 'Alex',
+        context: 'Tomorrow',
+        authorization: 'No fees',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+    });
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+
+    engine.telephony.validateDestination = async () => gate;
+
+    let dials = 0;
+
+    voice.startCall = async () => {
+        dials++;
+
+        return {
+            success: true,
+            message: 'Started',
+            conversation_id: 'test-conversation',
+            callSid: 'test-call',
+        };
+    };
+
+    const first = engine.start('one-call');
+    const second = engine.start('one-call');
+
+    release();
+
+    const results = await Promise.allSettled([first, second]);
+
+    assert.equal(dials, 1);
+    assert.equal(
+        results.filter((result) => result.status === 'fulfilled').length,
+        1,
+    );
+});

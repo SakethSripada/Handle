@@ -5,6 +5,7 @@ import type { CaseEvent } from '../core/model.js';
 import type { Engine } from '../core/engine.js';
 import type { Photon } from '../providers/photon.js';
 import type { Spacetime } from '../providers/spacetime.js';
+import { checkReadiness } from '../core/readiness.js';
 import { auth } from './auth.js';
 
 export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
@@ -21,6 +22,8 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
         owner: owner(),
         services: {
             photon: photon.status,
+            photonLastInboundAt: photon.lastInboundAt,
+            photonDetail: photon.lastError,
             voice: config.ELEVENLABS_AGENT_ID ? 'configured' : 'not_configured',
             intake: config.ELEVENLABS_INTAKE_AGENT_ID
                 ? 'configured'
@@ -38,6 +41,9 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
         },
     });
 
+    router.get('/readiness', async (_req, res) =>
+        res.json(await checkReadiness(engine, photon)),
+    );
     router.get('/state', (_req, res) => res.json(snapshot()));
     router.get('/events', (req, res) => {
         res.set({

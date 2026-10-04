@@ -8,9 +8,11 @@ import { Decisions } from './decisions.js';
 import { ElevenLabs } from '../providers/elevenlabs.js';
 import { Gmail } from '../providers/gmail.js';
 import twilio from 'twilio';
+import { Telephony } from '../providers/telephony.js';
 
 export class Engine {
     readonly decisions: Decisions;
+    readonly telephony: Telephony;
     private queues = new Map<string, Promise<void>>();
 
     constructor(
@@ -19,6 +21,7 @@ export class Engine {
         readonly voice: ElevenLabs,
         readonly gmail: Gmail,
     ) {
+        this.telephony = new Telephony(config);
         this.decisions = new Decisions(store, (c, text) =>
             this.notify(c, text),
         );
@@ -65,7 +68,11 @@ export class Engine {
             .catch((error) => {
                 const c = this.store
                     .cases()
-                    .find((c) => c.owner === input.owner);
+                    .find(
+                        (c) =>
+                            c.owner === input.owner &&
+                            c.spaceId === input.spaceId,
+                    );
 
                 if (c) {
                     this.store.event(
@@ -101,6 +108,8 @@ export class Engine {
             .find(
                 (c) =>
                     c.owner === input.owner &&
+                    c.spaceId === input.spaceId &&
+                    c.mode !== 'rehearsal' &&
                     [
                         'gathering',
                         'ready',
@@ -300,6 +309,26 @@ export class Engine {
         if (this.config.CALLING_ENABLED !== 'true') {
             throw new Error(
                 'Real calls are paused. Enable calling after connecting a sender number.',
+            );
+        }
+
+        await this.telephony.validateDestination(c.phone);
+
+        if (this.config.CALLING_ENABLED !== 'true') {
+            throw new Error(
+                'Real calls were paused while checking the phone connection.',
+            );
+        }
+
+        const current = this.store.case(id);
+
+        if (
+            !current ||
+            current.status !== 'ready' ||
+            current.updatedAt !== c.updatedAt
+        ) {
+            throw new Error(
+                'The request changed while checking the phone connection. Review its current status.',
             );
         }
 
