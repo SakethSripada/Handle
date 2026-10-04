@@ -12,6 +12,8 @@ export const planSchema = z.object({
     authorization: z.string().max(3000),
     ready: z.boolean(),
     needsEmail: z.boolean().default(false),
+    emailQuery: z.string().trim().max(500).default(''),
+    emailOnly: z.boolean().default(false),
     reply: z.string().min(1).max(1500),
 });
 
@@ -57,12 +59,14 @@ export async function planIntake(
     events: CaseEvent[],
     evidence: unknown[] = [],
     pastCalls: CallMemory[] = [],
+    emailLookup?: { status: 'found' | 'empty'; query: string },
 ): Promise<IntakePlan> {
     const explicitPhone = explicitDialNumber(events);
     const suppliedPhone = explicitPhone || c.phone;
     const answer = await textAgent(
         JSON.stringify({
             emailEvidence: evidence,
+            emailLookup,
             pastCalls,
             existingCase: {
                 goal: c.goal,
@@ -87,6 +91,7 @@ export async function planIntake(
     parsed.phone = explicitPhone || normalizePhone(parsed.phone);
     parsed.ready =
         parsed.ready &&
+        !parsed.emailOnly &&
         Boolean(
             parsed.goal.trim() && parsed.phone && parsed.authorization.trim(),
         );

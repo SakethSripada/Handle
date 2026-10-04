@@ -94,5 +94,7 @@ export interface IntakePlan {
     authorization: string;
     ready: boolean;
     needsEmail: boolean;
+    emailQuery: string;
+    emailOnly: boolean;
     reply: string;
 }
