@@ -60,14 +60,15 @@ Open [localhost:4327](http://localhost:4327). The **Connections** page checks th
 
 ## Stack
 
-| Service                  | Role                                                     |
-| ------------------------ | -------------------------------------------------------- |
-| Photon / Spectrum        | Receive and reply to iMessages                           |
-| ElevenLabs               | Plan requests and run voice conversations                |
-| Twilio / Photon SIP      | Place outbound phone calls                               |
-| SpacetimeDB              | Replicate case state and events                          |
-| Gmail OAuth              | Retrieve relevant emails with permission                 |
-| React + Express + SQLite | Dashboard, application server, and durable local storage |
+| Service             | Role                                                        |
+| ------------------- | ----------------------------------------------------------- |
+| Photon / Spectrum   | Receive and reply to iMessages                              |
+| Gemini              | Understand texts and verify call outcomes                   |
+| ElevenLabs          | Run voice conversations                                     |
+| Twilio / Photon SIP | Place outbound phone calls                                  |
+| SpacetimeDB         | Primary state, transactional writes, and live subscriptions |
+| Gmail OAuth         | Retrieve relevant emails with permission                    |
+| React + Express     | Dashboard and integration server                            |
 
 ## Development
 
@@ -93,3 +94,13 @@ Application logic lives in `src/core`, integrations in `src/providers`, and the 
 Credentials, local case data, and OAuth tokens are excluded from Git. Gmail tokens are encrypted locally. The dashboard requires authentication, and iMessage access is limited to explicitly allowed senders.
 
 Handle is currently designed for a controlled demo. Public onboarding, per-user dashboard access, usage limits, and persistent hosting are required before opening it to everyone.
+
+### State and recovery
+
+SpacetimeDB is the primary database for cases, transcripts, approvals, incoming messages, and delivery jobs. Handle waits for database confirmation before acknowledging writes. Its server subscribes to private tables and forwards committed updates to the authenticated dashboard; the browser never receives the database credential.
+
+Reducers enforce write versions, approval expiry and ownership, and a lease that permits one active backend. During a database interruption, new actions pause. On reconnect, Handle restores its subscription and resumes pending work. The integration server still needs to be running for iMessage and voice tools.
+
+SQLite is used only for isolated tests and importing the original installation. To migrate an older installation, stop its server and run `npm run state:migrate` once. This creates a local backup, verifies imported records, and refuses to overwrite existing cloud state. New installations start directly from SpacetimeDB.
+
+`npm run check:state` checks subscriptions, private access, transactional rejection, and recovery against the configured database using temporary fictional records. Stop the backend first so the check can acquire its writer lease. It never sends texts or places calls. Regenerate client bindings with `npm run state:generate` after module changes.

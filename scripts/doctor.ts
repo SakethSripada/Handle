@@ -31,6 +31,7 @@ async function main() {
         'textProvider',
         'calling',
         'spacetime',
+        'storagePrimary',
         'gmail',
     ]) {
         console.log(`  ${name}: ${state.services[name]}`);
@@ -107,7 +108,7 @@ async function main() {
         const audit = await auditResponse.json();
 
         console.log(
-            `${audit.consistent ? 'PASS' : 'FAIL'} SpacetimeDB record parity`,
+            `${audit.consistent ? 'PASS' : 'FAIL'} SpacetimeDB subscription parity`,
             JSON.stringify(audit.counts),
         );
 
