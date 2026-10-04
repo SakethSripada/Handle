@@ -36,6 +36,9 @@ export interface Case {
     stopRequestedAt?: number;
     callToken?: string;
     outcome?: string;
+    confirmation?: string;
+    confirmedAt?: number;
+    memoryExcluded?: boolean;
 }
 
 export interface CaseEvent {

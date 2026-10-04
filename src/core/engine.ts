@@ -3,6 +3,7 @@ import type { Config } from '../config.js';
 import type { Case, Incoming, Messenger } from './model.js';
 import { Store } from './store.js';
 import { token } from './crypto.js';
+import { recallCalls } from './memory.js';
 import { planIntake } from './intake.js';
 import { Decisions } from './decisions.js';
 import { ElevenLabs } from '../providers/elevenlabs.js';
@@ -222,6 +223,8 @@ export class Engine {
             (p) => this.voice.text(p),
             c,
             this.store.events(c.id),
+            [],
+            recallCalls(this.store, c),
         );
 
         if (
@@ -254,6 +257,7 @@ export class Engine {
                         { ...c, ...plan },
                         this.store.events(c.id),
                         emails,
+                        recallCalls(this.store, { ...c, ...plan }),
                     );
                 }
             } catch {

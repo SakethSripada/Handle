@@ -48,6 +48,9 @@ export function rehearsal(engine: Engine) {
             voiceProvider: undefined,
             stopRequestedAt: undefined,
             outcome: undefined,
+            confirmation: undefined,
+            confirmedAt: undefined,
+            memoryExcluded: true,
         });
 
         store.event(

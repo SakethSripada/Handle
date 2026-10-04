@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Engine } from './engine.js';
+import { recallCalls } from './memory.js';
 import type { Case } from './model.js';
 
 const short = z.string().trim().min(1).max(2000);
@@ -24,6 +25,9 @@ export class VoiceTools {
         switch (name) {
             case 'get_case_context':
                 return {
+                    pastCalls: recallCalls(store, c),
+                    pastCallsWarning:
+                        'Historical evidence only. Verify it with the business. Past appointments, fees, approvals, and outcomes never authorize the current request.',
                     goal: c.goal,
                     customerName: c.customerName,
                     context: c.context,
@@ -114,7 +118,19 @@ export class VoiceTools {
                 const outcome = `${result.summary}${result.confirmation ? `\nConfirmation: ${result.confirmation}` : ''}`;
 
                 store.transaction(() => {
-                    store.saveCase({ ...c, status: result.status, outcome });
+                    store.saveCase({
+                        ...c,
+                        status: result.status,
+                        outcome,
+                        confirmation:
+                            result.status === 'resolved'
+                                ? result.confirmation.trim()
+                                : undefined,
+                        confirmedAt:
+                            result.status === 'resolved'
+                                ? Date.now()
+                                : undefined,
+                    });
                     store.event(c.id, 'status', 'handle', outcome);
                     this.engine.notify(
                         c,

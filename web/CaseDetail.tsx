@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Phone, Headphones } from 'lucide-react';
+import { CallMemory } from './CallMemory.js';
 import { Rehearsal } from './Rehearsal.js';
 import { request, statusLabels, type State, type Case } from './types.js';
 
@@ -153,6 +154,7 @@ export function CaseDetail({
                             <p>
                                 {c.authorization || 'No action authorized yet.'}
                             </p>
+                            <CallMemory c={c} />
                         </div>
                     ) : (
                         <div className="timeline">
