@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const schema = z.object({
+    CALLING_ENABLED: z.enum(['true', 'false']).default('false'),
     PORT: z.coerce.number().default(4310),
     PUBLIC_URL: z.string().url().default('http://localhost:4310'),
     DASHBOARD_TOKEN: z.string().min(24),
