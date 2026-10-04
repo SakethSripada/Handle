@@ -12,6 +12,7 @@
     "build": "tsc --noEmit && vite build",
     "check": "npm run format:check && npm run lint && tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "check:gmail": "tsx --env-file=.env scripts/check-gmail.ts",
     "check:intake": "tsx --env-file=.env scripts/check-intake.ts",
     "check:outcomes": "tsx --env-file=.env scripts/check-outcomes.ts",
     "setup:voice": "tsx --env-file=.env scripts/setup-voice.ts",

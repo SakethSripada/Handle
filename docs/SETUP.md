@@ -67,7 +67,7 @@ Publish the module in `spacetimedb/` using the SpacetimeDB CLI. Set:
 - `SPACETIMEDB_DATABASE`
 - `SPACETIMEDB_TOKEN`
 
-Use the publisher's token. Tables are private, and the publisher owns the write reducer. Handle keeps a local journal and retries cloud replication after interruptions.
+Use the publisher's token. Tables are private, and the publisher owns the write reducer. SpacetimeDB is the primary store; Handle subscribes to committed state and pauses new actions during a database interruption.
 
 ### Twilio
 
@@ -103,9 +103,21 @@ The Photon SIP adapter is prepared alongside Twilio. It needs confirmed voice ac
 4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, then restart Handle.
 5. Choose **Connect Gmail** in the dashboard, or text `connect gmail`, and complete consent.
 
-Access is read-only. Tokens are encrypted locally. Testing-mode consent may need renewal after seven days. Without Gmail, users can supply reservation and receipt details in their messages.
+Access is read-only. Handle encrypts tokens before storing them in private SpacetimeDB state. Keep `ENCRYPTION_KEY` unchanged across restarts. Without Gmail, users can supply reservation and receipt details in their messages.
 
-Changing the tunnel address also requires updating the OAuth redirect URI.
+Connection links expire after ten minutes. Opening a link shows a **Continue with Google** button, so iMessage previews cannot use it up. The button starts a one-use consent flow. Complete consent in the same browser that opened the link. If you cancel or the link expires, request a new one. Text `disconnect gmail` (or `disconnect email`), or use the **Disconnect Gmail** button. This revokes Google's grant and removes the saved tokens.
+
+With Handle running, verify the connection without reading or printing any emails:
+
+```sh
+npm run check:gmail
+```
+
+Then use the dashboard's Gmail search with a specific receipt or reservation query to check evidence retrieval. Gmail search is restricted to the connected user; demo calls cannot access it. You can text a standalone request such as “Find my latest receipt from Maple Salon; don’t call yet,” discuss the details, refine the search, and then separately ask Handle to call. Disconnecting stops new lookups; evidence already saved in a request remains.
+
+If Google shows `redirect_uri_mismatch`, update the web client's authorized redirect URI to exactly match `${PUBLIC_URL}/oauth/google/callback`. A new tunnel address requires a new registered URI and a Handle restart. Never commit tunnel credentials, OAuth secrets, or consent links.
+
+Google's External / Testing mode requires the account to be listed as a test user. Gmail grants in this mode expire after seven days; reconnect when prompted. Public onboarding needs Google's production verification process.
 
 ## 4. Rehearse before dialing
 
@@ -133,7 +145,8 @@ Use **Connections** for live provider checks. Keep calls paused until the caller
 ## Storage and access
 
 - `.env` contains credentials and local settings.
-- `.data` contains case data and encrypted OAuth tokens.
+- SpacetimeDB holds private cases and encrypted OAuth tokens.
+- `.data` contains local logs and any legacy migration backups.
 - `work` contains local development files.
 
 All three are ignored by Git. Do not publish their contents or share the dashboard token with demo participants. The current dashboard is an operator workspace that can view all enrolled users' requests.

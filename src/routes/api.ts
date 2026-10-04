@@ -148,6 +148,9 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
         await engine.stop(String(req.params.id));
         res.json({ ok: true });
     });
+    router.get('/gmail/status', async (_req, res) =>
+        res.json(await gmail.checkConnection(owner())),
+    );
     router.post('/gmail/connect', async (_req, res) =>
         res.json({ url: await gmail.connectionLink(owner()) }),
     );
