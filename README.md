@@ -4,6 +4,8 @@ A personal customer-service agent you text through iMessage.
 
 Tell Handle what you need and which business to call. It gathers the details, talks to the business on your behalf, and sends you the outcome. If a new fee or a change needs your approval, it texts you before agreeing.
 
+The request determines the conversation. Ask about opening hours, check a delivery, get troubleshooting advice, reschedule something, or describe another task. Handle asks for identifying details only when that task needs them; asking a question does not authorize changing an account or booking.
+
 Built at MHacks.
 
 ## How it works
@@ -75,6 +77,8 @@ npm run check   # Check formatting, lint rules, and TypeScript
 npm test        # Run isolated tests
 npm run doctor  # Check the running service without placing a call
 ```
+
+`npm run check:intake` checks varied requests against the configured ElevenLabs planner. It uses fictional inputs and consumes agent credits, but never places a phone call.
 
 Active development is pushed to `dev`; changes reach `main` through reviewed pull requests.
 
