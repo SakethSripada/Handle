@@ -15,6 +15,7 @@ if (!health.ok) {
 const state = await (await fetch(`${base}/api/state`, { headers })).json();
 
 console.log('Handle is running. Connection status:');
+console.log('Delivery queues:', JSON.stringify(state.queues ?? {}));
 
 for (const name of [
     'photon',
@@ -88,4 +89,24 @@ for (const [name, response, expected] of checks) {
 
 if (!state.services.calling) {
     console.log('Real calls are paused. Browser rehearsal is available.');
+}
+
+const auditResponse = await fetch(`${base}/api/storage-audit`, { headers });
+
+if (auditResponse.ok) {
+    const audit = await auditResponse.json();
+
+    console.log(
+        `${audit.consistent ? 'PASS' : 'FAIL'} SpacetimeDB record parity`,
+        JSON.stringify(audit.counts),
+    );
+
+    if (!audit.consistent) {
+        process.exitCode = 1;
+    }
+} else {
+    console.log(
+        'FAIL SpacetimeDB record audit unavailable. Local data remains available.',
+    );
+    process.exitCode = 1;
 }

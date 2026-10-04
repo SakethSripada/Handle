@@ -7,6 +7,11 @@ export interface State {
     events: CaseEvent[];
     approvals: Approval[];
     owner: string;
+    queues?: {
+        messages: { pending: number; retrying: number };
+        replication: { pending: number; retrying: number };
+        incoming: number;
+    };
     services: {
         photon: string;
         voice: string;
