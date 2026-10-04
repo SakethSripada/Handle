@@ -14,6 +14,7 @@ const schema = z.object({
     PHOTON_PROJECT_SECRET: z.string().default(''),
     ELEVENLABS_API_KEY: z.string().default(''),
     ELEVENLABS_AGENT_ID: z.string().default(''),
+    ELEVENLABS_VERIFIER_AGENT_ID: z.string().default(''),
     ELEVENLABS_INTAKE_AGENT_ID: z.string().default(''),
     ELEVENLABS_PHONE_NUMBER_ID: z.string().default(''),
     ELEVENLABS_WEBHOOK_SECRET: z.string().default(''),

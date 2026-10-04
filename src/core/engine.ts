@@ -113,6 +113,7 @@ export class Engine {
                     c.spaceId === input.spaceId &&
                     c.mode !== 'rehearsal' &&
                     [
+                        'verifying',
                         'gathering',
                         'ready',
                         'dialing',
@@ -207,6 +208,15 @@ export class Engine {
 
         if (/^(stop|stop call|cancel request)$/i.test(input.text.trim())) {
             await this.stop(c.id);
+
+            return;
+        }
+
+        if (c.status === 'verifying') {
+            this.notify(
+                c,
+                'The call has ended. I’m checking the business’s confirmation before reporting the result.',
+            );
 
             return;
         }

@@ -98,9 +98,11 @@ export class ElevenLabs {
         );
     }
 
-    async text(prompt: string): Promise<string> {
-        const id = this.config.ELEVENLABS_INTAKE_AGENT_ID;
-
+    async text(
+        prompt: string,
+        id = this.config.ELEVENLABS_INTAKE_AGENT_ID,
+        timeoutMs = 45000,
+    ): Promise<string> {
         if (!id) {
             throw new Error('The intake agent has not been configured.');
         }
@@ -129,7 +131,7 @@ export class ElevenLabs {
                     finish(
                         new Error('The intake agent took too long to respond.'),
                     ),
-                45000,
+                timeoutMs,
             );
 
             ws.on('open', () =>

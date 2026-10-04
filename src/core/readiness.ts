@@ -50,11 +50,19 @@ export async function checkReadiness(engine: Engine, photon: Photon) {
                 await voice.request(
                     `/convai/agents/${config.ELEVENLABS_INTAKE_AGENT_ID}`,
                 );
+
+                if (!config.ELEVENLABS_VERIFIER_AGENT_ID) {
+                    throw new Error('Outcome verifier is not configured.');
+                }
+
+                await voice.request(
+                    `/convai/agents/${config.ELEVENLABS_VERIFIER_AGENT_ID}`,
+                );
                 voiceReady = true;
                 checks.push({
                     name: 'ElevenLabs',
                     status: 'ready',
-                    detail: 'The voice agent and text planner are accessible.',
+                    detail: 'The voice agent, text planner, and outcome verifier are accessible.',
                 });
             } catch {
                 checks.push({

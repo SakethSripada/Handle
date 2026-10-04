@@ -48,6 +48,7 @@ export function rehearsal(engine: Engine) {
             voiceProvider: undefined,
             stopRequestedAt: undefined,
             outcome: undefined,
+            proposedOutcome: undefined,
             confirmation: undefined,
             confirmedAt: undefined,
             memoryExcluded: true,
@@ -115,7 +116,7 @@ export function rehearsal(engine: Engine) {
         ) {
             store.saveCase({
                 ...c,
-                status: 'follow_up',
+                status: c.proposedOutcome ? 'verifying' : 'follow_up',
                 callToken: undefined,
                 outcome:
                     'Browser rehearsal ended without a confirmed resolution.',

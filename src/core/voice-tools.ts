@@ -115,12 +115,36 @@ export class VoiceTools {
                     );
                 }
 
+                if (result.status === 'resolved') {
+                    store.saveCase({
+                        ...c,
+                        proposedOutcome: {
+                            summary: result.summary,
+                            confirmation: result.confirmation,
+                        },
+                    });
+                    store.event(
+                        c.id,
+                        'status',
+                        'system',
+                        'Outcome recorded for verification against the completed business transcript.',
+                    );
+
+                    return {
+                        recorded: true,
+                        status: 'verifying',
+                        instruction:
+                            'If the business has not yet performed the action, ask them to do so and wait for explicit completion. Include their reference in a new finish_case call. Otherwise thank them and end_call. Handle will verify the transcript before notifying the customer.',
+                    };
+                }
+
                 const outcome = `${result.summary}${result.confirmation ? `\nConfirmation: ${result.confirmation}` : ''}`;
 
                 store.transaction(() => {
                     store.saveCase({
                         ...c,
                         status: result.status,
+                        proposedOutcome: undefined,
                         outcome,
                         confirmation:
                             result.status === 'resolved'
@@ -134,7 +158,7 @@ export class VoiceTools {
                     store.event(c.id, 'status', 'handle', outcome);
                     this.engine.notify(
                         c,
-                        `${result.status === 'resolved' ? 'Handled.' : result.status === 'follow_up' ? 'Update — this needs a follow-up.' : 'I couldn’t complete this.'} ${outcome}`,
+                        `${result.status === 'follow_up' ? 'Update — this needs a follow-up.' : 'I couldn’t complete this.'} ${outcome}`,
                         `result:${c.id}`,
                     );
                 });

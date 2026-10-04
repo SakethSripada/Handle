@@ -122,8 +122,9 @@ test('resolution needs confirmation and cannot bypass pending approval', async (
         summary: 'They waived the fee and cancelled.',
         confirmation: 'ref 123',
     });
-    assert.equal(store.case(c.id)?.status, 'resolved');
-    assert.equal(store.jobs('message').length, 3);
+    assert.equal(store.case(c.id)?.status, 'in_call');
+    assert.equal(store.case(c.id)?.proposedOutcome?.confirmation, 'ref 123');
+    assert.equal(store.jobs('message').length, 2);
 });
 
 test('a disconnected call is not treated as a successful resolution', () => {

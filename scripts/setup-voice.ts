@@ -1,7 +1,11 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { loadConfig } from '../src/config.js';
 import { ElevenLabs } from '../src/providers/elevenlabs.js';
-import { intakePrompt, voicePrompt } from '../src/core/prompts.js';
+import {
+    intakePrompt,
+    voicePrompt,
+    verifierPrompt,
+} from '../src/core/prompts.js';
 import { saveEnv } from './env.js';
 
 const config = loadConfig();
@@ -209,6 +213,23 @@ const intakeConfig = {
 for (const [key, body] of [
     ['ELEVENLABS_AGENT_ID', voiceConfig],
     ['ELEVENLABS_INTAKE_AGENT_ID', intakeConfig],
+    [
+        'ELEVENLABS_VERIFIER_AGENT_ID',
+        {
+            ...intakeConfig,
+            name: 'Handle · outcome verification',
+            conversation_config: {
+                ...intakeConfig.conversation_config,
+                agent: {
+                    ...intakeConfig.conversation_config.agent,
+                    prompt: {
+                        ...intakeConfig.conversation_config.agent.prompt,
+                        prompt: verifierPrompt,
+                    },
+                },
+            },
+        },
+    ],
 ] as const) {
     const existing = process.env[key];
 
