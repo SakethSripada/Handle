@@ -44,6 +44,14 @@ npm run setup:phone -- --connect
 
 Restart Handle, select **Twilio**, and check connections. Both providers retain separate ElevenLabs number IDs. Pause calling and finish active calls before switching. Handle never automatically retries a failed dial or switches carriers mid-call.
 
+## Voice delivery
+
+Phone calls use Eric, an American conversational voice, with Eleven v4 Turbo and expressive delivery. The prompt favors short turns, natural emphasis, and clear numbers without forced laughter or filler. Native 8 kHz mu-law audio is retained for the Twilio connection; changing the export sample rate would not improve that phone route.
+
+`npm run setup:voice` includes this profile. To update only the live agent's voice and speaking instructions, run `npm run tune:voice` while Handle is running and no telephone calls are active. It preserves the tools, carrier setup, privacy settings, and approval rules. The first update saves the previous voice and prompt in the ignored `.data/voice-quality-backup.json`; `npm run tune:voice -- --restore` restores them. A later setup or tuning run reapplies the profile from source.
+
+The new model generated 8 kHz audio and responded to synthesized spoken input in an isolated agent check. This checks synthesis and speech recognition, not the subjective quality heard over a carrier connection. Compare the next consenting phone call before treating the voice improvement as verified.
+
 ## Latency
 
 There is no verified Photon-versus-Twilio latency benchmark for this application. SIP may avoid a WebSocket media bridge, but carrier routing, codec conversion, endpointing, model inference, speech generation, and tool round trips all contribute to the experience.
