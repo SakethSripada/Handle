@@ -10,9 +10,7 @@ export class CallMonitor {
             .filter(
                 (c) =>
                     c.conversationId &&
-                    ['dialing', 'in_call', 'waiting_approval'].includes(
-                        c.status,
-                    ),
+                    !this.engine.store.get('call-finalized', c.conversationId),
             )) {
             try {
                 this.apply(
@@ -50,6 +48,11 @@ export class CallMonitor {
 
         if (data.status === 'in-progress' && c.status === 'dialing') {
             store.saveCase({ ...c, status: 'in_call' });
+        }
+
+        if (['done', 'failed'].includes(data.status)) {
+            store.put('call-finalized', data.conversation_id, true);
+            store.saveCase({ ...c, callToken: undefined });
         }
 
         if (

@@ -40,7 +40,7 @@ export class Spacetime {
                         ]),
                     },
                 );
-                this.store.finishJob(job.id);
+                this.store.finishJob(job.id, job.body);
                 this.lastSyncedAt = Date.now();
                 this.status = 'connected';
                 this.lastError = undefined;

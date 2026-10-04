@@ -159,8 +159,14 @@ export class Store extends EventEmitter {
         }[];
     }
 
-    finishJob(id: string) {
-        this.db.prepare('DELETE FROM outbox WHERE id=?').run(id);
+    finishJob(id: string, body?: string) {
+        if (body) {
+            this.db
+                .prepare('DELETE FROM outbox WHERE id=? AND body=?')
+                .run(id, body);
+        } else {
+            this.db.prepare('DELETE FROM outbox WHERE id=?').run(id);
+        }
     }
 
     retryJob(id: string, attempts: number) {
