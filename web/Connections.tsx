@@ -81,8 +81,9 @@ export function Connections({ state, busy, action, gmail, setState }: Props) {
             <div className="connection-card">
                 <h2>Delivery and storage</h2>
                 <p>
-                    Messages and cloud updates are saved locally and retried
-                    after a connection interruption.
+                    SpacetimeDB stores cases, decisions, transcripts, and
+                    pending texts. Live subscriptions keep this dashboard in
+                    sync.
                 </p>
                 <div className="service">
                     <span>Texts awaiting delivery</span>
@@ -91,15 +92,13 @@ export function Connections({ state, busy, action, gmail, setState }: Props) {
                     </span>
                 </div>
                 <div className="service">
-                    <span>Cloud updates pending</span>
-                    <span className="tag">
-                        {state.queues?.replication.pending ?? 0}
-                    </span>
+                    <span>Incoming texts to process</span>
+                    <span className="tag">{state.queues?.incoming ?? 0}</span>
                 </div>
                 <small>
                     {state.services.lastSyncedAt
-                        ? `Last cloud write: ${new Date(state.services.lastSyncedAt).toLocaleTimeString()}`
-                        : 'Cloud writes appear here after the next case update.'}
+                        ? `Last database update: ${new Date(state.services.lastSyncedAt).toLocaleTimeString()}`
+                        : 'Waiting for the initial database subscription.'}
                 </small>
             </div>
             {state.services.gmail === 'connected' && (

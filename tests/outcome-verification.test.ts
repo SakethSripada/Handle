@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { verifyOutcome } from '../src/core/outcome-verification.js';
-import { Store } from '../src/core/store.js';
+import { LocalStore as Store } from '../src/core/local-store.js';
 import { loadConfig } from '../src/config.js';
 import { Engine } from '../src/core/engine.js';
 import { CallMonitor } from '../src/core/call-monitor.js';
@@ -50,7 +50,6 @@ test('a verifier cannot ground completion in the assistant or an invented busine
 
     assert.equal(result.resolved, false);
 });
-
 test('the customer only gets Handled after independent verification of the completed transcript', async () => {
     const config = loadConfig();
 
@@ -60,9 +59,13 @@ test('the customer only gets Handled after independent verification of the compl
     const voice = new ElevenLabs(config);
     const engine = new Engine(config, store, voice, new Gmail(config, store));
 
-    store.saveCase(c);
+    await store.saveCase(c);
 
     let release!: () => void;
+    let started!: () => void;
+    const verifying = new Promise<void>((resolve) => {
+        started = resolve;
+    });
     const wait = new Promise<void>((resolve) => {
         release = resolve;
     });
@@ -70,6 +73,7 @@ test('the customer only gets Handled after independent verification of the compl
     voice.text = async (prompt, agent) => {
         assert.equal(agent, 'verifier');
         assert.equal(JSON.parse(prompt).transcript[0].speaker, 'business');
+        started();
         await wait;
 
         return JSON.stringify({
@@ -92,6 +96,7 @@ test('the customer only gets Handled after independent verification of the compl
         ],
     });
 
+    await verifying;
     assert.equal(store.case(c.id)?.status, 'verifying');
     assert.equal(store.jobs('message').length, 0);
     assert.equal(store.case(c.id)?.callToken, undefined);
@@ -107,7 +112,6 @@ test('the customer only gets Handled after independent verification of the compl
     assert.equal(store.jobs('message').length, 1);
     store.db.close();
 });
-
 test('verification outages leave a follow-up without creating recallable success', async () => {
     const config = loadConfig();
 
@@ -122,7 +126,7 @@ test('verification outages leave a follow-up without creating recallable success
 
     const engine = new Engine(config, store, voice, new Gmail(config, store));
 
-    store.saveCase(c);
+    await store.saveCase(c);
     await new CallMonitor(engine).apply(c.id, {
         conversation_id: 'conversation',
         status: 'done',
@@ -131,7 +135,6 @@ test('verification outages leave a follow-up without creating recallable success
     assert.equal(store.case(c.id)?.confirmedAt, undefined);
     store.db.close();
 });
-
 test('a short recipient answer can resolve an information request', async () => {
     const result = await verifyOutcome(
         async () =>
@@ -155,7 +158,6 @@ test('a short recipient answer can resolve an information request', async () => 
 
     assert.equal(result.resolved, true);
 });
-
 test('short quotes must match a complete recipient turn, not a fragment', async () => {
     const result = await verifyOutcome(
         async () =>

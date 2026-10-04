@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
 const schema = z.object({
+    TEXT_PROVIDER: z.enum(['auto', 'gemini', 'elevenlabs']).default('auto'),
+    GEMINI_API_KEY: z.string().trim().default(''),
+    GEMINI_MODEL: z
+        .string()
+        .regex(/^[a-zA-Z0-9._-]+$/)
+        .default('gemini-3.8-flash'),
     VOICE_PROVIDER: z.enum(['twilio', 'photon']).default('twilio'),
     PHOTON_VOICE_ENABLED: z.enum(['true', 'false']).default('false'),
     PHOTON_VOICE_NUMBER: z.string().default(''),

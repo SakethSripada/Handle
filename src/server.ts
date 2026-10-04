@@ -1,7 +1,6 @@
 import express from 'express';
 import { resolve } from 'node:path';
 import { loadConfig } from './config.js';
-import { Store } from './core/store.js';
 import { startWorker } from './core/worker.js';
 import { Engine } from './core/engine.js';
 import { CallMonitor } from './core/call-monitor.js';
@@ -16,21 +15,17 @@ import { settings } from './routes/settings.js';
 import { sessionLogin } from './routes/auth.js';
 
 const config = loadConfig();
-const store = new Store();
+const store = await Spacetime.open(config);
 const voice = new ElevenLabs(config);
 const gmail = new Gmail(config, store);
-
 const engine = new Engine(config, store, voice, gmail);
 const photon = new Photon(config);
-const spacetime = new Spacetime(config, store);
+const spacetime = store;
 const monitor = new CallMonitor(engine);
-
 const app = express();
 
 app.disable('x-powered-by');
-
 app.set('trust proxy', 'loopback');
-
 app.use((req, res, next) => {
     res.set({
         'X-Content-Type-Options': 'nosniff',
@@ -58,24 +53,15 @@ app.use((req, res, next) => {
 const callback = callbacks(engine, monitor);
 
 app.use(callback.router);
-
 app.use(express.json({ limit: '64kb' }));
-
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'handle' }));
-
 app.post('/api/login', sessionLogin(config, store));
-
 app.use('/api/cases', rehearsal(engine));
-
 app.use('/api/settings', settings(engine, photon));
 app.use('/api', api(engine, photon, spacetime));
-
 app.use('/tools', callback.toolHandler);
-
 app.use(express.static(resolve('dist')));
-
 app.get('/{*path}', (_req, res) => res.sendFile(resolve('dist/index.html')));
-
 app.use(
     (
         error: Error,
@@ -113,17 +99,20 @@ photon.lastInboundAt = store
         (latest, event) => Math.max(latest ?? 0, event.at),
         undefined,
     );
-
 void photon
-    .connect((input) => engine.accept(input))
+    .connect(async (input) => await engine.accept(input))
     .catch((error) => {
         photon.status = 'error';
         console.warn('Photon:', error.message);
     });
-
 engine.resume();
+store.on('online', () => engine.resume());
 
 const stopWorkers = [
+    startWorker('Inbox', 2000, async () => {
+        store.assertAvailable();
+        engine.resume();
+    }),
     startWorker('Messages', 1000, () =>
         engine.flushMessages({
             send: async (spaceId, text, line) => {
@@ -133,15 +122,18 @@ const stopWorkers = [
             },
         }),
     ),
-    startWorker('SpacetimeDB', 1000, () => spacetime.flush()),
     startWorker('Call status', 5000, () => monitor.poll()),
 ];
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
     process.on(signal, () => {
         stopWorkers.forEach((stop) => stop());
-        void photon.stop();
-        server.close(() => process.exit(0));
+        void (async () => {
+            await photon.stop();
+            await store.close();
+            server.closeAllConnections();
+            server.close(() => process.exit(0));
+        })().catch(() => process.exit(1));
         setTimeout(() => process.exit(0), 3000).unref();
     });
 }

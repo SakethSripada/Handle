@@ -39,7 +39,10 @@ export interface Case {
     sipCallId?: string;
     stopRequestedAt?: number;
     callToken?: string;
-    proposedOutcome?: { summary: string; confirmation: string };
+    proposedOutcome?: {
+        summary: string;
+        confirmation: string;
+    };
     outcome?: string;
     confirmation?: string;
     confirmedAt?: number;
@@ -62,6 +65,7 @@ export interface Approval {
     question: string;
     status: 'pending' | 'approved' | 'declined' | 'expired';
     answer?: string;
+    answeredBy?: string;
     createdAt: number;
     expiresAt: number;
 }

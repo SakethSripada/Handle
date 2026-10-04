@@ -38,10 +38,12 @@ export function rehearsal(engine: Engine) {
             throw new Error('End the existing rehearsal first.');
         }
 
-        const { signed_url } = await voice.request<{ signed_url: string }>(
+        const { signed_url } = await voice.request<{
+            signed_url: string;
+        }>(
             `/convai/conversation/get_signed_url?agent_id=${config.ELEVENLABS_AGENT_ID}`,
         );
-        const c = store.saveCase({
+        const c = await store.saveCase({
             ...source,
             id: randomUUID(),
             title: `Rehearsal · ${source.title.replace(/^Rehearsal · /, '')}`,
@@ -62,7 +64,7 @@ export function rehearsal(engine: Engine) {
             callMetrics: undefined,
         });
 
-        store.event(
+        await store.event(
             c.id,
             'status',
             'system',
@@ -74,7 +76,7 @@ export function rehearsal(engine: Engine) {
             dynamicVariables: callVariables(c),
         });
     });
-    router.post('/:id/rehearsal-event', (req, res) => {
+    router.post('/:id/rehearsal-event', async (req, res) => {
         const c = store.case(String(req.params.id));
 
         if (!c || c.mode !== 'rehearsal') {
@@ -94,11 +96,11 @@ export function rehearsal(engine: Engine) {
             .parse(req.body);
 
         if (data.conversationId) {
-            store.saveCase({ ...c, conversationId: data.conversationId });
+            await store.saveCase({ ...c, conversationId: data.conversationId });
         }
 
         if (data.message && data.role) {
-            store.event(
+            await store.event(
                 c.id,
                 'transcript',
                 data.role === 'agent' ? 'handle' : 'business',
@@ -111,7 +113,7 @@ export function rehearsal(engine: Engine) {
             data.ended &&
             ['dialing', 'in_call', 'waiting_approval'].includes(c.status)
         ) {
-            store.saveCase({
+            await store.saveCase({
                 ...c,
                 status: c.proposedOutcome ? 'verifying' : 'follow_up',
                 callToken: undefined,

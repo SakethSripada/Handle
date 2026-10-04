@@ -29,13 +29,13 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
             photonLastInboundAt: photon.lastInboundAt,
             photonDetail: photon.lastError,
             voice: config.ELEVENLABS_AGENT_ID ? 'configured' : 'not_configured',
-            intake: config.ELEVENLABS_INTAKE_AGENT_ID
-                ? 'configured'
-                : 'not_configured',
+            intake: engine.text.configured ? 'configured' : 'not_configured',
+            textProvider: engine.text.provider,
             calling:
                 config.CALLING_ENABLED === 'true' &&
                 Boolean(voiceNumberId(config)),
             spacetime: spacetime.status,
+            storagePrimary: 'spacetimedb',
             lastSyncedAt: spacetime.lastSyncedAt,
             gmail: gmail.connected(owner())
                 ? 'connected'
@@ -76,7 +76,7 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
             store.off('change', send);
         });
     });
-    router.post('/messages', (req, res) => {
+    router.post('/messages', async (req, res) => {
         const { text, caseId } = z
             .object({
                 text: z.string().trim().min(1).max(10000),
@@ -85,7 +85,7 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
             .parse(req.body);
         const id = randomUUID();
 
-        engine.accept({
+        await engine.accept({
             id,
             owner: owner(),
             spaceId: `web:${owner()}`,
@@ -94,8 +94,8 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
         });
         res.status(202).json({ id });
     });
-    router.post('/cases/new', (_req, res) => {
-        const c = store.saveCase({
+    router.post('/cases/new', async (_req, res) => {
+        const c = await store.saveCase({
             id: randomUUID(),
             owner: owner(),
             spaceId: `web:${owner()}`,
@@ -124,7 +124,7 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
 
         res.json({ memories: recallCalls(store, c) });
     });
-    router.post('/cases/:id/memory', (req, res) => {
+    router.post('/cases/:id/memory', async (req, res) => {
         const c = store.case(String(req.params.id));
 
         if (!c) {
@@ -137,7 +137,7 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
             .object({ excluded: z.boolean() })
             .parse(req.body);
 
-        store.saveCase({ ...c, memoryExcluded: excluded });
+        await store.saveCase({ ...c, memoryExcluded: excluded });
         res.json({ excluded });
     });
     router.post('/cases/:id/start', async (req, res) => {
@@ -148,8 +148,8 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
         await engine.stop(String(req.params.id));
         res.json({ ok: true });
     });
-    router.post('/gmail/connect', (_req, res) =>
-        res.json({ url: gmail.connectionLink(owner()) }),
+    router.post('/gmail/connect', async (_req, res) =>
+        res.json({ url: await gmail.connectionLink(owner()) }),
     );
     router.post('/gmail/disconnect', async (_req, res) => {
         await gmail.disconnect(owner());

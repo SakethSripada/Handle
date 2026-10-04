@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Store } from '../src/core/store.js';
+import { LocalStore as Store } from '../src/core/local-store.js';
 import { recallCalls } from '../src/core/memory.js';
 import type { Case } from '../src/core/model.js';
 
@@ -32,7 +32,7 @@ function past(id: string, fields: Partial<Case> = {}): Case {
     };
 }
 
-test('recall is limited to recent confirmed outcomes for this user and business', () => {
+test('recall is limited to recent confirmed outcomes for this user and business', async () => {
     const store = new Store(':memory:');
     const records = [
         past('same'),
@@ -47,7 +47,7 @@ test('recall is limited to recent confirmed outcomes for this user and business'
         past('new'),
     ];
 
-    records.forEach((c) => store.saveCase(c));
+    await Promise.all(records.map((c) => store.saveCase(c)));
 
     const memory = recallCalls(store, current);
 
@@ -60,28 +60,25 @@ test('recall is limited to recent confirmed outcomes for this user and business'
     assert.deepEqual(recallCalls(store, { ...current, phone: '' }), []);
     store.db.close();
 });
-
-test('excluding memory persists in the same private SpacetimeDB case snapshot', () => {
+test('excluding memory persists in the same private SpacetimeDB case snapshot', async () => {
     const store = new Store(':memory:');
 
-    store.saveCase(past('previous', { callToken: 'do-not-replicate' }));
+    await store.saveCase(past('previous', { callToken: 'do-not-replicate' }));
     assert.equal(recallCalls(store, current).length, 1);
-    store.saveCase({ ...store.case('previous')!, memoryExcluded: true });
+    await store.saveCase({ ...store.case('previous')!, memoryExcluded: true });
     assert.equal(recallCalls(store, current).length, 0);
-
-    const job = JSON.parse(store.jobs('replicate')[0].body);
-
-    assert.equal(job.data.memoryExcluded, true);
-    assert.equal(job.data.confirmation, 'Business confirmed refund REF123');
-    assert.equal(job.data.callToken, undefined);
+    assert.equal(store.case('previous')?.memoryExcluded, true);
+    assert.equal(
+        store.case('previous')?.confirmation,
+        'Business confirmed refund REF123',
+    );
     store.db.close();
 });
-
-test('recall has a bounded prompt size and orders outcomes by confirmation time', () => {
+test('recall has a bounded prompt size and orders outcomes by confirmation time', async () => {
     const store = new Store(':memory:');
 
     for (let i = 0; i < 6; i++) {
-        store.saveCase(
+        await store.saveCase(
             past(`past-${i}`, { confirmedAt: Date.now() - i * 1000 }),
         );
     }

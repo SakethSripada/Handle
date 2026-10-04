@@ -17,16 +17,14 @@ export class Photon implements Messenger {
     status = 'not_configured';
     lastInboundAt?: number;
     lastError?: string;
-
     constructor(private config: Config) {}
-
-    connect(receive: (input: Incoming) => void) {
+    connect(receive: (input: Incoming) => Promise<void>) {
         this.task ??= this.run(receive);
 
         return this.task;
     }
 
-    private async run(receive: (input: Incoming) => void) {
+    private async run(receive: (input: Incoming) => Promise<void>) {
         let failures = 0;
 
         while (!this.shutdown.signal.aborted) {
@@ -70,7 +68,7 @@ export class Photon implements Messenger {
                         );
 
                         try {
-                            receive({
+                            await receive({
                                 id: message.id,
                                 owner,
                                 spaceId: space.id,

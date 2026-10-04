@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { Store } from '../src/core/store.js';
+import { LocalStore as Store } from '../src/core/local-store.js';
 import { Decisions } from '../src/core/decisions.js';
 import { seal, unseal, verifyElevenSignature } from '../src/core/crypto.js';
 import { planIntake } from '../src/core/intake.js';
 import type { Case } from '../src/core/model.js';
 
-const makeCase = (store: Store): Case =>
-    store.saveCase({
+const makeCase = async (store: Store): Promise<Case> =>
+    await store.saveCase({
         id: 'case-1',
         owner: '+12025550142',
         spaceId: 'web:test',
@@ -24,7 +24,7 @@ const makeCase = (store: Store): Case =>
         updatedAt: Date.now(),
     });
 
-test('encrypted tokens round trip, reject tampering and the wrong key', () => {
+test('encrypted tokens round trip, reject tampering and the wrong key', async () => {
     const key = 'ab'.repeat(32);
     const sealed = seal({ refresh_token: 'private' }, key);
 
@@ -36,8 +36,7 @@ test('encrypted tokens round trip, reject tampering and the wrong key', () => {
     altered[30] ^= 1;
     assert.throws(() => unseal(altered.toString('base64'), key));
 });
-
-test('webhook verifier rejects stale, missing and altered signatures', () => {
+test('webhook verifier rejects stale, missing and altered signatures', async () => {
     const body = Buffer.from('{"type":"post_call_transcription"}');
     const secret = 'test-secret';
     const now = Date.now();
@@ -70,61 +69,63 @@ test('webhook verifier rejects stale, missing and altered signatures', () => {
     );
     assert.equal(verifyElevenSignature(body, '', '', now), false);
 });
-
-test('approvals belong to an owner, expire, and cannot be reused', () => {
+test('approvals belong to an owner, expire, and cannot be reused', async () => {
     const store = new Store(':memory:');
-    const c = makeCase(store);
+    const c = await makeCase(store);
     const sent: string[] = [];
     const decisions = new Decisions(store, (_c, text) => sent.push(text));
-    const a = decisions.request(c, 'Accept a $15 cancellation fee?');
+    const a = await decisions.request(c, 'Accept a $15 cancellation fee?');
 
-    assert.equal(decisions.request(c, 'A second question?').id, a.id);
+    assert.equal((await decisions.request(c, 'A second question?')).id, a.id);
     assert.equal(sent.length, 1);
-    assert.throws(
-        () => decisions.answer('+15550000000', `YES ${a.id}`),
+    await assert.rejects(
+        async () => await decisions.answer('+15550000000', `YES ${a.id}`),
         /does not belong/,
     );
-    assert.equal(decisions.answer(c.owner, 'yes'), undefined);
-    assert.equal(decisions.answer(c.owner, `NO ${a.id}`)?.status, 'declined');
-    assert.throws(
-        () => decisions.answer(c.owner, `YES ${a.id}`),
+    assert.equal(await decisions.answer(c.owner, 'yes'), undefined);
+    assert.equal(
+        (await decisions.answer(c.owner, `NO ${a.id}`))?.status,
+        'declined',
+    );
+    await assert.rejects(
+        async () => await decisions.answer(c.owner, `YES ${a.id}`),
         /cannot authorize/,
     );
 
-    const b = decisions.request(c, 'Accept a $20 fee?');
+    const b = await decisions.request(c, 'Accept a $20 fee?');
 
-    store.put('approval', b.id, { ...b, expiresAt: Date.now() - 1 });
-    assert.equal(decisions.get(c, b.id).status, 'expired');
-    assert.throws(() => decisions.answer(c.owner, `YES ${b.id}`), /expired/);
+    await store.put('approval', b.id, { ...b, expiresAt: Date.now() - 1 });
+    assert.equal((await decisions.get(c, b.id)).status, 'expired');
+    await assert.rejects(
+        async () => await decisions.answer(c.owner, `YES ${b.id}`),
+        /expired/,
+    );
 });
-
-test('duplicate inbound events and event IDs are idempotent', () => {
+test('duplicate inbound events and event IDs are idempotent', async () => {
     const store = new Store(':memory:');
 
-    assert.equal(store.receive('m1', { text: 'hello' }), true);
-    assert.equal(store.receive('m1', { text: 'hello' }), false);
-    store.event('c1', 'message', 'user', 'one', 'm1');
-    store.event('c1', 'message', 'user', 'two', 'm1');
+    assert.equal(await store.receive('m1', { text: 'hello' }), true);
+    assert.equal(await store.receive('m1', { text: 'hello' }), false);
+    await store.event('c1', 'message', 'user', 'one', 'm1');
+    await store.event('c1', 'message', 'user', 'two', 'm1');
     assert.equal(store.events('c1').length, 1);
     assert.equal(store.events('c1')[0].text, 'one');
 });
-
-test('an in-flight replication acknowledgement cannot discard a newer state', () => {
+test('an in-flight replication acknowledgement cannot discard a newer state', async () => {
     const store = new Store(':memory:');
 
-    store.enqueue('replicate', { version: 1 }, 'same');
+    await store.enqueue('replicate', { version: 1 }, 'same');
 
     const old = store.jobs('replicate')[0];
 
-    store.enqueue('replicate', { version: 2 }, 'same');
-    store.finishJob(old.id, old.body);
+    await store.enqueue('replicate', { version: 2 }, 'same');
+    await store.finishJob(old.id, old.body);
     assert.equal(store.jobs('replicate').length, 1);
     assert.match(store.jobs('replicate')[0].body, /2/);
 });
-
 test('intake cannot start a call on a malformed or incomplete model plan', async () => {
     const store = new Store(':memory:');
-    const c = makeCase(store);
+    const c = await makeCase(store);
     const plan = {
         title: 'Test',
         goal: 'Cancel',
@@ -142,20 +143,19 @@ test('intake cannot start a call on a malformed or incomplete model plan', async
     assert.equal(result.phone, '');
     await assert.rejects(() => planIntake(async () => '{"ready":true}', c, []));
 });
-
-test('transaction rolls back partial case changes and outbox writes', () => {
+test('transaction rolls back partial case changes and outbox writes', async () => {
     const store = new Store(':memory:');
 
-    assert.throws(() =>
-        store.transaction(() => {
-            makeCase(store);
-            throw new Error('rollback');
-        }),
+    await assert.rejects(
+        async () =>
+            await store.transaction(async () => {
+                await makeCase(store);
+                throw new Error('rollback');
+            }),
     );
     assert.equal(store.cases().length, 0);
     assert.equal(store.jobs('replicate').length, 0);
 });
-
 test('explicit call numbers are preserved without guessing between multiple destinations', async () => {
     const { explicitDialNumber, planIntake } =
         await import('../src/core/intake.js');
@@ -228,9 +228,8 @@ test('explicit call numbers are preserved without guessing between multiple dest
     assert.equal(plan.phone, '+12025550110');
     assert.equal(plan.ready, true);
 });
-
 test('an information request can be ready without a name or account details', async () => {
-    const c = makeCase(new Store(':memory:'));
+    const c = await makeCase(new Store(':memory:'));
     const result = await planIntake(
         async () =>
             JSON.stringify({
@@ -254,9 +253,8 @@ test('an information request can be ready without a name or account details', as
     assert.equal(result.context, '');
     assert.equal(result.needsEmail, false);
 });
-
 test('task-specific missing details still prevent dialing', async () => {
-    const c = makeCase(new Store(':memory:'));
+    const c = await makeCase(new Store(':memory:'));
     const result = await planIntake(
         async () =>
             JSON.stringify({

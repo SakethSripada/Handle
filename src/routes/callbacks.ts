@@ -44,9 +44,9 @@ export function callbacks(engine: Engine, monitor: CallMonitor) {
             res.json({ received: true });
         },
     );
-    router.get('/connect/gmail/:id', (req, res) => {
+    router.get('/connect/gmail/:id', async (req, res) => {
         const browserToken = token();
-        const url = gmail.begin(String(req.params.id), browserToken);
+        const url = await gmail.begin(String(req.params.id), browserToken);
 
         res.cookie('handle_oauth', browserToken, {
             httpOnly: true,
