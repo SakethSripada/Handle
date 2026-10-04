@@ -57,23 +57,45 @@ export function callbacks(engine: Engine, monitor: CallMonitor) {
         res.redirect(url);
     });
     router.get('/oauth/google/callback', async (req, res) => {
-        if (req.query.error) {
-            res.status(400).send(
-                'Gmail was not connected. You can return to Handle and try again.',
+        res.clearCookie('handle_oauth', { path: '/' });
+
+        try {
+            const state = z.string().min(1).parse(req.query.state);
+            const browserToken = cookie(req, 'handle_oauth');
+
+            if (req.query.error) {
+                await gmail.cancel(state, browserToken);
+                res.status(400)
+                    .type('html')
+                    .send(
+                        gmailPage(
+                            'Gmail was not connected.',
+                            'No new access was granted. Return to Handle and request a new connection link when you are ready.',
+                        ),
+                    );
+
+                return;
+            }
+
+            const code = z.string().min(1).parse(req.query.code);
+
+            await gmail.callback(state, code, browserToken);
+            res.type('html').send(
+                gmailPage(
+                    'Gmail is connected.',
+                    'Handle can now find receipts, reservations, and confirmations relevant to your requests. You can disconnect it in the dashboard at any time.',
+                ),
             );
-
-            return;
+        } catch {
+            res.status(400)
+                .type('html')
+                .send(
+                    gmailPage(
+                        'Gmail could not connect.',
+                        'Return to Handle and request a fresh connection link. Open it and complete Google’s consent in the same browser, within ten minutes.',
+                    ),
+                );
         }
-
-        const { state, code } = z
-            .object({ state: z.string(), code: z.string() })
-            .parse(req.query);
-
-        await gmail.callback(state, code, cookie(req, 'handle_oauth'));
-        res.clearCookie('handle_oauth');
-        res.type('html').send(
-            '<!doctype html><html><meta name="viewport" content="width=device-width"><title>Gmail connected · Handle</title><body style="background:#f5f4ed;color:#1a2923;font:20px system-ui;padding:10vw"><h1>Gmail is connected.</h1><p>Handle can now look up receipts, reservations, and confirmations relevant to your requests.</p><p>You can return to iMessage or close this tab.</p></body></html>',
-        );
     });
 
     return {
@@ -103,4 +125,9 @@ export function callbacks(engine: Engine, monitor: CallMonitor) {
             res.json(await tools.run(c, String(req.params.name), req.body));
         }),
     };
+}
+
+function gmailPage(title: string, message: string) {
+    // Both arguments are fixed application copy, never provider or query values.
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Gmail · Handle</title></head><body style="background:#f5f4ed;color:#1a2923;font:18px/1.6 system-ui;padding:10vw;max-width:640px"><h1>${title}</h1><p>${message}</p><p>You can return to iMessage or close this tab.</p></body></html>`;
 }

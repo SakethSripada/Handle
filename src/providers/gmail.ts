@@ -2,7 +2,19 @@ import { createHash } from 'node:crypto';
 import type { Config } from '../config.js';
 import { Store } from '../core/store.js';
 import { seal, unseal, token } from '../core/crypto.js';
-import { jsonRequest } from './http.js';
+import { jsonRequest, ProviderError } from './http.js';
+
+function isExpiredGrant(error: unknown) {
+    if (!(error instanceof ProviderError) || error.status !== 400) {
+        return false;
+    }
+
+    try {
+        return JSON.parse(error.detail).error === 'invalid_grant';
+    } catch {
+        return false;
+    }
+}
 
 interface Tokens {
     access_token: string;
@@ -15,6 +27,7 @@ interface OAuthState {
     verifier: string;
     expiresAt: number;
     browserToken: string;
+    redirectUri: string;
 }
 interface GmailPart {
     mimeType?: string;
@@ -96,27 +109,29 @@ export class Gmail {
     }
 
     async begin(id: string, browserToken: string) {
-        const link = this.store.get<{
-            owner: string;
-            expiresAt: number;
-        }>('connect-link', id);
-
-        if (!link || link.expiresAt < Date.now()) {
-            throw new Error(
-                'This connection link expired. Request a fresh link from Handle.',
-            );
-        }
-
-        await this.store.remove('connect-link', id);
-
         const state = token();
         const verifier = token();
 
-        await this.store.put<OAuthState>('oauth-state', state, {
-            owner: link.owner,
-            verifier,
-            browserToken,
-            expiresAt: Date.now() + 600000,
+        await this.store.transaction(async () => {
+            const link = this.store.get<{ owner: string; expiresAt: number }>(
+                'connect-link',
+                id,
+            );
+
+            if (!link || link.expiresAt < Date.now()) {
+                throw new Error(
+                    'This connection link expired. Request a fresh link from Handle.',
+                );
+            }
+
+            await this.store.remove('connect-link', id);
+            await this.store.put<OAuthState>('oauth-state', state, {
+                owner: link.owner,
+                verifier,
+                expiresAt: Date.now() + 600000,
+                browserToken,
+                redirectUri: this.redirectUri,
+            });
         });
 
         const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -142,23 +157,38 @@ export class Gmail {
         return `${this.config.PUBLIC_URL}/oauth/google/callback`;
     }
 
+    private async consumeState(state: string, browserToken: string) {
+        return this.store.transaction(async () => {
+            const saved = this.store.get<OAuthState>('oauth-state', state);
+
+            if (
+                !saved ||
+                saved.expiresAt < Date.now() ||
+                !browserToken ||
+                saved.browserToken !== browserToken
+            ) {
+                throw new Error(
+                    'Invalid or expired OAuth state. Request a new Gmail connection link.',
+                );
+            }
+
+            await this.store.remove('oauth-state', state);
+
+            return saved;
+        });
+    }
+
+    async cancel(state: string, browserToken: string) {
+        await this.consumeState(state, browserToken);
+    }
+
     async callback(state: string, code: string, browserToken: string) {
-        const saved = this.store.get<OAuthState>('oauth-state', state);
-
-        await this.store.remove('oauth-state', state);
-
-        if (
-            !saved ||
-            saved.expiresAt < Date.now() ||
-            saved.browserToken !== browserToken
-        ) {
-            throw new Error('Invalid or expired OAuth state.');
-        }
+        const saved = await this.consumeState(state, browserToken);
 
         const result = await this.exchange({
             code,
             code_verifier: saved.verifier,
-            redirect_uri: this.redirectUri,
+            redirect_uri: saved.redirectUri,
             grant_type: 'authorization_code',
         });
         const profile = await jsonRequest<{
@@ -211,21 +241,56 @@ export class Gmail {
                 throw new Error('Reconnect Gmail to refresh access.');
             }
 
-            creds = {
-                ...creds,
-                ...(await this.exchange({
-                    refresh_token: creds.refresh_token,
-                    grant_type: 'refresh_token',
-                })),
-            };
-            await this.store.put(
-                'gmail',
-                owner,
-                seal(creds, this.config.ENCRYPTION_KEY),
-            );
+            try {
+                creds = {
+                    ...creds,
+                    ...(await this.exchange({
+                        refresh_token: creds.refresh_token,
+                        grant_type: 'refresh_token',
+                    })),
+                };
+            } catch (error) {
+                if (isExpiredGrant(error)) {
+                    await this.store.transaction(async () => {
+                        if (this.store.get('gmail', owner) === encrypted) {
+                            await this.store.remove('gmail', owner);
+                        }
+                    });
+                    throw new Error(
+                        'Gmail access expired or was revoked. Reconnect Gmail to continue.',
+                    );
+                }
+
+                throw error;
+            }
+
+            await this.store.transaction(async () => {
+                if (this.store.get('gmail', owner) !== encrypted) {
+                    throw new Error(
+                        'The Gmail connection changed. Please try again.',
+                    );
+                }
+
+                await this.store.put(
+                    'gmail',
+                    owner,
+                    seal(creds, this.config.ENCRYPTION_KEY),
+                );
+            });
         }
 
         return creds.access_token;
+    }
+
+    async checkConnection(owner: string) {
+        const accessToken = await this.accessToken(owner);
+        const profile = await jsonRequest<{ emailAddress: string }>(
+            'Gmail',
+            'https://gmail.googleapis.com/gmail/v1/users/me/profile',
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+
+        return { connected: true, email: profile.emailAddress };
     }
 
     async search(owner: string, query: string): Promise<MailEvidence[]> {
