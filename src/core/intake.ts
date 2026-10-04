@@ -28,6 +28,28 @@ export function normalizePhone(value: string): string {
     return '';
 }
 
+export function explicitDialNumber(events: CaseEvent[]) {
+    const event = [...events]
+        .reverse()
+        .find((e) => e.actor === 'user' && e.kind === 'message');
+
+    if (!event) {
+        return '';
+    }
+
+    const candidates = event.text.match(/\+?\d[\d ().-]{7,28}\d/g) ?? [];
+
+    if (candidates.filter((value) => normalizePhone(value)).length !== 1) {
+        return '';
+    }
+
+    const match = event.text.match(
+        /(?:^|[.!?\n]\s*)(?:please\s+)?(?:call|(?:the\s+)?phone(?: number)?(?: is)?)\s*[:=]?\s*(\+?\d[\d ().-]{7,28}\d)/i,
+    );
+
+    return match ? normalizePhone(match[1]) : '';
+}
+
 export async function planIntake(
     textAgent: (prompt: string) => Promise<string>,
     c: Case,
@@ -35,6 +57,8 @@ export async function planIntake(
     evidence: unknown[] = [],
     pastCalls: CallMemory[] = [],
 ): Promise<IntakePlan> {
+    const explicitPhone = explicitDialNumber(events);
+    const suppliedPhone = explicitPhone || c.phone;
     const answer = await textAgent(
         JSON.stringify({
             emailEvidence: evidence,
@@ -42,7 +66,7 @@ export async function planIntake(
             existingCase: {
                 goal: c.goal,
                 business: c.business,
-                phone: c.phone,
+                phone: suppliedPhone,
                 customerName: c.customerName,
                 context: c.context,
                 authorization: c.authorization,
@@ -59,7 +83,7 @@ export async function planIntake(
         ),
     );
 
-    parsed.phone = normalizePhone(parsed.phone);
+    parsed.phone = explicitPhone || normalizePhone(parsed.phone);
     parsed.ready =
         parsed.ready &&
         Boolean(

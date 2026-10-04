@@ -155,3 +155,76 @@ test('transaction rolls back partial case changes and outbox writes', () => {
     assert.equal(store.cases().length, 0);
     assert.equal(store.jobs('replicate').length, 0);
 });
+
+test('explicit call numbers are preserved without guessing between multiple destinations', async () => {
+    const { explicitDialNumber, planIntake } =
+        await import('../src/core/intake.js');
+    const event = {
+        id: 'input',
+        caseId: 'phone',
+        kind: 'message' as const,
+        actor: 'user' as const,
+        text: 'Cancel my appointment. Call 202-555-0110. No fees.',
+        at: 1,
+    };
+
+    assert.equal(explicitDialNumber([event]), '+12025550110');
+    assert.equal(
+        explicitDialNumber([{ ...event, text: 'Do not call 202-555-0110.' }]),
+        '',
+    );
+    assert.equal(
+        explicitDialNumber([
+            event,
+            { ...event, text: 'That phone number was wrong.' },
+        ]),
+        '',
+    );
+    assert.equal(
+        explicitDialNumber([
+            { ...event, text: 'Call 202-555-0110 or call 202-555-0111.' },
+        ]),
+        '',
+    );
+    assert.equal(
+        explicitDialNumber([{ ...event, text: 'Order 2025550110' }]),
+        '',
+    );
+
+    const plan = await planIntake(
+        async (input) => {
+            assert.equal(JSON.parse(input).existingCase.phone, '+12025550110');
+
+            return JSON.stringify({
+                title: 'Cancel',
+                goal: 'Cancel',
+                business: 'Salon',
+                phone: '',
+                customerName: 'Alex',
+                context: 'Tomorrow 2pm',
+                authorization: 'No fees',
+                ready: true,
+                reply: 'Ready',
+            });
+        },
+        {
+            id: 'phone',
+            owner: '+12025550142',
+            spaceId: 'test',
+            title: '',
+            goal: '',
+            business: '',
+            phone: '',
+            customerName: '',
+            context: '',
+            authorization: '',
+            status: 'gathering',
+            createdAt: 1,
+            updatedAt: 1,
+        },
+        [event],
+    );
+
+    assert.equal(plan.phone, '+12025550110');
+    assert.equal(plan.ready, true);
+});
