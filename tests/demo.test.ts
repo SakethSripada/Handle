@@ -287,3 +287,45 @@ test('replaying the inbox after a restart cannot redial a completed demo', async
     assert.equal(store.case(c.id)?.status, 'completed');
     assert.equal(store.case(c.id)?.outcome, 'Demo finished.');
 });
+
+test('an enabled voice route starts a demo once from a duplicated text', async () => {
+    const { engine, store, voice } = setup();
+
+    Object.assign(engine.config, {
+        CALLING_ENABLED: 'true',
+        VOICE_PROVIDER: 'twilio',
+        ELEVENLABS_PHONE_NUMBER_ID: 'test-number',
+        TWILIO_PHONE_NUMBER: '+12025550111',
+    });
+    engine.telephony.validateDestination = async () => {};
+
+    voice.request = async <T>() =>
+        ({
+            provider: 'twilio',
+            phone_number: engine.config.TWILIO_PHONE_NUMBER,
+            assigned_agent: { agent_id: engine.config.ELEVENLABS_AGENT_ID },
+        }) as T;
+
+    let dials = 0;
+
+    voice.startCall = async (c) => {
+        dials++;
+        assert.equal(c.mode, 'demo');
+        assert.equal(c.phone, '+12025550110');
+        assert.ok(c.callToken);
+
+        return {
+            success: true,
+            message: 'Started',
+            conversation_id: 'demo-start',
+            callSid: 'test-call',
+        };
+    };
+
+    engine.accept(input);
+    engine.accept(input);
+    await engine.idle();
+    assert.equal(dials, 1);
+    assert.equal(store.cases()[0].status, 'dialing');
+    assert.equal(store.cases()[0].conversationId, 'demo-start');
+});
