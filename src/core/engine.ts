@@ -11,6 +11,7 @@ import twilio from 'twilio';
 import { checkVoiceRoute, voiceNumberId } from '../providers/voice-routing.js';
 import { Telephony } from '../providers/telephony.js';
 import { demoCommand, demoDetails } from './demo.js';
+import { stopCommand } from './call-commands.js';
 import { TextAgents } from '../providers/text-agents.js';
 
 export class Engine {
@@ -131,6 +132,7 @@ export class Engine {
 
     private async process(input: Incoming) {
         const demo = demoCommand(input.text);
+        const stop = stopCommand(input.text);
         let c = this.store
             .cases()
             .find(
@@ -168,7 +170,8 @@ export class Engine {
                 !/^(?:status|connect|disconnect)\b|^(yes|no) /i.test(
                     input.text,
                 ) &&
-                !demo
+                !demo &&
+                !stop
             ) {
                 await this.notify(
                     c,
@@ -217,9 +220,8 @@ export class Engine {
             !live &&
             (demo?.phone ||
                 (c?.mode === 'demo' &&
-                    !/^(status[?.!]?|stop|stop call|cancel request)$/i.test(
-                        input.text.trim(),
-                    )))
+                    !stop &&
+                    !/^status[?.!]?$/i.test(input.text.trim())))
         ) {
             c = undefined;
         }
@@ -333,8 +335,26 @@ export class Engine {
             return;
         }
 
-        if (/^(stop|stop call|cancel request)$/i.test(input.text.trim())) {
-            await this.stop(c.id);
+        if (stop) {
+            const calls = this.store
+                .cases()
+                .filter(
+                    (candidate) =>
+                        candidate.owner === input.owner &&
+                        candidate.mode !== 'rehearsal' &&
+                        ['dialing', 'in_call', 'waiting_approval'].includes(
+                            candidate.status,
+                        ),
+                );
+            const targets = stop === 'all' ? calls : calls.slice(0, 1);
+
+            if (!targets.length) {
+                await this.stop(c.id);
+            } else {
+                for (const target of targets) {
+                    await this.stop(target.id);
+                }
+            }
 
             return;
         }
@@ -530,6 +550,10 @@ export class Engine {
 
             return;
         }
+
+        // Revoke authority before asking the carrier, even if hangup fails.
+        c.stopRequestedAt = Date.now();
+        await this.store.saveCase(c);
 
         if (c.callSid) {
             if (!this.config.TWILIO_AUTH_TOKEN) {

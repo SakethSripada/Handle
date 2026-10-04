@@ -32,14 +32,20 @@ export class CallMonitor {
                     !this.engine.store.get('call-finalized', c.conversationId),
             )) {
             try {
+                let carrierCompleted = false;
+
                 if (
                     c.voiceProvider === 'twilio' &&
                     c.callSid &&
-                    ['dialing', 'in_call'].includes(c.status)
+                    ['dialing', 'in_call', 'waiting_approval'].includes(
+                        c.status,
+                    )
                 ) {
                     const status = await this.engine.telephony
                         .callStatus(c.callSid)
                         .catch(() => undefined);
+
+                    carrierCompleted = status === 'completed';
 
                     if (
                         status &&
@@ -58,6 +64,18 @@ export class CallMonitor {
 
                         continue;
                     }
+                }
+
+                if (carrierCompleted) {
+                    // The carrier has ended the call. Transcript processing must
+                    // not keep the customer locked out of making another call.
+                    await this.engine.store.saveCase({
+                        ...c,
+                        status: c.stopRequestedAt ? 'cancelled' : 'follow_up',
+                        callToken: undefined,
+                        outcome:
+                            'The phone call has ended. Waiting for the conversation transcript before reporting its outcome.',
+                    });
                 }
 
                 await this.apply(
