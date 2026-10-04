@@ -108,6 +108,12 @@ export class Gmail {
         return `${this.config.PUBLIC_URL}/connect/gmail/${id}`;
     }
 
+    connectionAvailable(id: string) {
+        const link = this.store.get<{ expiresAt: number }>('connect-link', id);
+
+        return Boolean(link && link.expiresAt > Date.now());
+    }
+
     async begin(id: string, browserToken: string) {
         const state = token();
         const verifier = token();

@@ -105,7 +105,7 @@ The Photon SIP adapter is prepared alongside Twilio. It needs confirmed voice ac
 
 Access is read-only. Handle encrypts tokens before storing them in private SpacetimeDB state. Keep `ENCRYPTION_KEY` unchanged across restarts. Without Gmail, users can supply reservation and receipt details in their messages.
 
-Connection links expire after ten minutes and work once. Complete consent in the same browser that opened the link. If you cancel or the link expires, request a new one. The **Disconnect Gmail** button revokes Google's grant and removes the saved tokens.
+Connection links expire after ten minutes. Opening a link shows a **Continue with Google** button, so iMessage previews cannot use it up. The button starts a one-use consent flow. Complete consent in the same browser that opened the link. If you cancel or the link expires, request a new one. The **Disconnect Gmail** button revokes Google's grant and removes the saved tokens.
 
 With Handle running, verify the connection without reading or printing any emails:
 
