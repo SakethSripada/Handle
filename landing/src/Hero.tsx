@@ -39,7 +39,7 @@ export const Nav: React.FC = () => {
         transition: 'background .4s, box-shadow .4s',
       }}
     >
-      <div style={{ width: 'min(1560px, calc(100% - 2 * var(--gutter)))', margin: '0 auto', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ width: 'min(var(--maxw), calc(100% - 2 * var(--gutter)))', margin: '0 auto', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <a href="#top" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <HandleMark size={28} />
           <Wordmark size={23} />
@@ -57,6 +57,11 @@ export const Nav: React.FC = () => {
 const LOOP_FROM = T.kbUp1 - 1.1;
 const LOOP_TO = T.out2 + 4.8;
 const CARD_W = 300;
+const PROOF = [
+  ['Sits on hold', 'so you don’t have to'],
+  ['Asks before it spends', 'every charge needs your OK'],
+  ['Remembers every case', 'for next time'],
+] as const;
 
 export const Hero: React.FC = () => {
   const vp = useViewport();
@@ -125,7 +130,7 @@ export const Hero: React.FC = () => {
       />
       <div
         style={{
-          width: 'min(1560px, calc(100% - 2 * var(--gutter)))',
+          width: 'min(var(--maxw), calc(100% - 2 * var(--gutter)))',
           margin: '0 auto',
           position: 'relative',
           height: '100%',
@@ -139,6 +144,20 @@ export const Hero: React.FC = () => {
         }}
       >
         <motion.div style={{ y: textY, opacity: fade, textAlign: wide ? 'left' : 'center', containerType: 'inline-size' }}>
+          <motion.div
+            className="hero-imessage"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.9, ease: EASE, delay: 0.1 }}
+          >
+            <span className="hero-imessage-icon" aria-hidden="true">
+              <MessagesAppIcon size={30} />
+            </span>
+            <p className="hero-imessage-copy">
+              <strong>Lives in iMessage</strong>
+              <span>Nothing to download</span>
+            </p>
+          </motion.div>
           <h1 className="display" style={{ fontSize: h1Size, lineHeight: 1.02, fontWeight: 600, letterSpacing: '-0.034em' }}>
             <BlurWords style={{ whiteSpace: wide ? 'nowrap' : 'normal' }} text="Just text it." immediate delay={0.25} />
             <br />
@@ -153,20 +172,6 @@ export const Hero: React.FC = () => {
           >
             Handle calls customer support for you, waits on hold, and texts you when it’s fixed.
           </motion.p>
-          <motion.div
-            className="hero-imessage"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, ease: EASE, delay: 1.1 }}
-          >
-            <span className="hero-imessage-icon" aria-hidden="true">
-              <MessagesAppIcon size={48} />
-            </span>
-            <p className="hero-imessage-copy">
-              <strong>Lives in iMessage.</strong>
-              <span>Nothing to download.</span>
-            </p>
-          </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -187,6 +192,21 @@ export const Hero: React.FC = () => {
               Explore features <Chevron />
             </a>
           </motion.div>
+          {wide && (
+            <motion.ul
+              className="hero-proof"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1.2, ease: EASE, delay: 1.4 }}
+            >
+              {PROOF.map(([title, body]) => (
+                <li key={title}>
+                  <strong>{title}</strong>
+                  <span>{body}</span>
+                </li>
+              ))}
+            </motion.ul>
+          )}
         </motion.div>
 
         <motion.div
@@ -203,6 +223,20 @@ export const Hero: React.FC = () => {
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           transition={{ duration: 1.8, ease: EASE, delay: 0.35 }}
         >
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '42%',
+              width: phoneW * 1.9,
+              height: phoneW * 1.9,
+              transform: 'translate(-50%, -50%)',
+              background: 'radial-gradient(closest-side, rgba(215,239,165,0.13), rgba(60,110,78,0.10) 45%, rgba(0,0,0,0) 100%)',
+              filter: 'blur(20px)',
+              pointerEvents: 'none',
+            }}
+          />
           <motion.div style={{ rotateX: rx, rotateY: ry, transformStyle: 'preserve-3d', opacity: loopFade, width: phoneW }}>
             <PhoneStage t={t} scale={scale} />
           </motion.div>
