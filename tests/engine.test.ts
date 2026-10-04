@@ -352,6 +352,7 @@ test('concurrent start requests cannot dial the same case twice', async () => {
     });
 
     engine.telephony.validateDestination = async () => gate;
+    engine.telephony.checkUsCalling = async () => {};
 
     let dials = 0;
 

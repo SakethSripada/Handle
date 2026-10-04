@@ -310,6 +310,8 @@ test('an enabled voice route starts a demo once from a duplicated text', async (
     });
     engine.telephony.validateDestination = async () => {};
 
+    engine.telephony.checkUsCalling = async () => {};
+
     voice.request = async <T>() =>
         ({
             provider: 'twilio',

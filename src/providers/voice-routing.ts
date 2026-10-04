@@ -61,6 +61,10 @@ export async function checkVoiceRoute(
         }
     }
 
+    if (config.VOICE_PROVIDER === 'twilio') {
+        await twilio.checkUsCalling();
+    }
+
     const id = voiceNumberId(config);
 
     if (!id) {

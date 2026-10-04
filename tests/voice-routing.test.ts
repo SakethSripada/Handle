@@ -137,3 +137,31 @@ test('Twilio trial is blocked even when the destination and caller number are va
         /trial accounts block/i,
     );
 });
+
+test('Twilio checks geographic permissions before trusting a connected line', async () => {
+    const { config, voice, twilio } = setup();
+
+    config.VOICE_PROVIDER = 'twilio';
+    config.TWILIO_PHONE_NUMBER = '+12025550111';
+    twilio.inspect = async () => ({
+        type: 'Full',
+        active: true,
+        numbers: [{ phoneNumber: config.TWILIO_PHONE_NUMBER }] as any,
+    });
+    twilio.checkUsCalling = async () => {
+        throw new Error('Enable United States low-risk numbers');
+    };
+
+    voice.request = async () => {
+        throw new Error('Must not reach ElevenLabs before permissions pass');
+    };
+
+    await assert.rejects(
+        () => checkVoiceRoute(config, voice, twilio),
+        /Enable United States/,
+    );
+    await assert.rejects(
+        () => checkVoiceRoute(config, voice, twilio, c.phone),
+        /Enable United States/,
+    );
+});

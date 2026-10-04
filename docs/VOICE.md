@@ -31,9 +31,11 @@ Handle revokes the agent's authority as soon as a stop request arrives. Every su
 
 Immediate remote hangup has not been verified for this SIP integration. During hold, a stop may wait until the next agent tool check. The dashboard shows **Stop requested** until ElevenLabs reports the call ended. Keep the provider console available during tests; do not interpret the request as a confirmed hangup.
 
-## Twilio fallback
+## Twilio setup
 
 Use a paid Twilio account with an owned voice number. Current trial restrictions block the audio streaming used by the ElevenLabs native integration; recipient verification alone is insufficient.
+
+For the US demo, enable **United States → Low-risk numbers** under Twilio Voice geographic permissions. An upgraded account can still have this disabled. Handle checks it before enabling calls or starting a dial. High-risk destinations do not need to be enabled.
 
 ```sh
 npm run setup:phone
