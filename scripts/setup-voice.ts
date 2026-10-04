@@ -7,7 +7,7 @@ import {
     verifierPrompt,
 } from '../src/core/prompts.js';
 import { saveEnv } from './env.js';
-import { phoneVoice } from '../src/core/voice-profile.js';
+import { phoneVoice, phoneTurn } from '../src/core/voice-profile.js';
 
 const config = loadConfig();
 const api = new ElevenLabs(config);
@@ -143,6 +143,7 @@ const voiceConfig = {
     conversation_config: {
         agent: {
             first_message: '{{opening_message}}',
+            disable_first_message_interruptions: true,
             language: 'en',
             dynamic_variables: {
                 dynamic_variable_placeholders: {
@@ -170,7 +171,7 @@ const voiceConfig = {
         },
         tts: phoneVoice,
         asr: { user_input_audio_format: 'ulaw_8000' },
-        turn: { turn_timeout: 20, silence_end_call_timeout: -1 },
+        turn: phoneTurn,
         conversation: {
             max_duration_seconds: 1800,
             client_events: [
