@@ -20,9 +20,9 @@ export function demoDetails(phone: string): Partial<Case> {
         phone,
         business: 'Demo participant',
         customerName: 'the person demonstrating Handle',
-        goal: 'Have a short, natural conversation with the demo participant.',
+        goal: 'Have a relaxed conversation about MHacks and follow the participant’s interests.',
         context:
-            'Introduce Handle, answer questions, and offer a fictional customer-service role-play if requested. Ask whether this is a good time. Keep the demo brief and end when asked.',
+            'Open by asking how they have been enjoying MHacks. Listen to their answer and follow their interests with a relevant follow-up. No product pitch or suggested role-play. Keep the conversation brief and end when asked.',
         authorization:
             'A demonstration conversation only. No purchases, cancellations, account changes, email access, or sharing private customer history.',
         memoryExcluded: true,
@@ -36,7 +36,7 @@ export function callVariables(c: Case) {
         customer_name: c.customerName,
         opening_message:
             c.mode === 'demo'
-                ? 'Hi, I’m Handle, an AI assistant. You were invited to try a quick live demo. Is now a good time to chat?'
+                ? 'Hey, I’m Handle, an AI assistant. How have you been enjoying MHacks so far?'
                 : c.customerName.trim()
                   ? `Hi, I’m Handle, an AI assistant calling on behalf of ${c.customerName}.`
                   : 'Hi, I’m Handle, an AI assistant.',

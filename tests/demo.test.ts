@@ -64,7 +64,8 @@ test('demo intake needs no LLM or email and duplicate delivery creates one reque
     assert.equal(c.phone, '+12025550110');
     assert.equal(c.memoryExcluded, true);
     assert.match(JSON.parse(store.jobs('message')[0].body).text, /paused/);
-    assert.match(callVariables(c).opening_message, /live demo/);
+    assert.match(callVariables(c).opening_message, /AI assistant/);
+    assert.match(callVariables(c).opening_message, /enjoying MHacks/);
     assert.equal(JSON.parse(callVariables(c).case_context).mode, 'demo');
 });
 test('a new demo does not overwrite a prepared customer-service request', async () => {

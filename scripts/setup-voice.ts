@@ -7,6 +7,7 @@ import {
     verifierPrompt,
 } from '../src/core/prompts.js';
 import { saveEnv } from './env.js';
+import { phoneVoice } from '../src/core/voice-profile.js';
 
 const config = loadConfig();
 const api = new ElevenLabs(config);
@@ -167,11 +168,7 @@ const voiceConfig = {
                 },
             },
         },
-        tts: {
-            voice_id: 'JBFqnCBsd6RMkjVDRZzb',
-            model_id: 'eleven_flash_v2',
-            agent_output_audio_format: 'ulaw_8000',
-        },
+        tts: phoneVoice,
         asr: { user_input_audio_format: 'ulaw_8000' },
         turn: { turn_timeout: 20, silence_end_call_timeout: -1 },
         conversation: {

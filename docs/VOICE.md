@@ -44,6 +44,14 @@ npm run setup:phone -- --connect
 
 Restart Handle, select **Twilio**, and check connections. Both providers retain separate ElevenLabs number IDs. Pause calling and finish active calls before switching. Handle never automatically retries a failed dial or switches carriers mid-call.
 
+## Voice delivery
+
+Phone calls use Eric, an American conversational voice, with Eleven v4 Turbo and expressive delivery. The prompt favors short turns, natural emphasis, and clear numbers without forced laughter or filler. Native 8 kHz mu-law audio is retained for the Twilio connection; changing the export sample rate would not improve that phone route.
+
+`npm run setup:voice` includes this profile. To update only the live agent's voice and speaking instructions, run `npm run tune:voice` while Handle is running and no telephone calls are active. It preserves the tools, carrier setup, privacy settings, and approval rules. The first update saves the previous voice and prompt in the ignored `.data/voice-quality-backup.json`; `npm run tune:voice -- --restore` restores them. A later setup or tuning run reapplies the profile from source.
+
+The new model generated 8 kHz audio and responded to synthesized spoken input in an isolated agent check. This checks synthesis and speech recognition, not the subjective quality heard over a carrier connection. Compare the next consenting phone call before treating the voice improvement as verified.
+
 ## Latency
 
 There is no verified Photon-versus-Twilio latency benchmark for this application. SIP may avoid a WebSocket media bridge, but carrier routing, codec conversion, endpointing, model inference, speech generation, and tool round trips all contribute to the experience.
@@ -66,7 +74,7 @@ Replace the fictional number with the judge's number. They do not need a Handle 
 
 The upgraded Twilio route does not require judges to verify their number. US calling permissions must be enabled. Let them know the call comes from Handle's separate voice number, then have them answer it normally.
 
-Handle introduces itself as an AI and asks whether it is a good time. The judge can chat, ask about Handle, or try a fictional role-play. This mode cannot read Gmail, retrieve private call history, or request payment approvals. It saves the conversation transcript and sends a completion text. It never marks a customer-service problem resolved.
+Handle introduces itself as an AI, asks how the recipient has been enjoying MHacks, and follows their response. It avoids a product pitch or suggested role-play; it explains Handle or plays a fictional scenario only when asked. This mode cannot read Gmail, retrieve private call history, or request payment approvals. It saves the conversation transcript and sends a completion text. It never marks a customer-service problem resolved.
 
 If calling is paused, the text prepares a request without dialing. Connect the line and choose **Start call** on that request. Enabling calling alone does not dial queued requests. Try this with your own phone before presenting it to a judge.
 
