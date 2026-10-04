@@ -29,9 +29,8 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
             photonLastInboundAt: photon.lastInboundAt,
             photonDetail: photon.lastError,
             voice: config.ELEVENLABS_AGENT_ID ? 'configured' : 'not_configured',
-            intake: config.ELEVENLABS_INTAKE_AGENT_ID
-                ? 'configured'
-                : 'not_configured',
+            intake: engine.text.configured ? 'configured' : 'not_configured',
+            textProvider: engine.text.provider,
             calling:
                 config.CALLING_ENABLED === 'true' &&
                 Boolean(voiceNumberId(config)),

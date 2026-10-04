@@ -8,6 +8,7 @@ import { auth } from './auth.js';
 
 const credentialSchema = z
     .object({
+        GEMINI_API_KEY: z.string().trim().min(16).max(512).optional(),
         PHOTON_PROJECT_SECRET: z.string().trim().min(16).max(512).optional(),
         TWILIO_ACCOUNT_SID: z
             .string()

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Case, Approval } from './model.js';
 import type { Conversation } from '../providers/elevenlabs.js';
 
-const verdictSchema = z.object({
+export const verdictSchema = z.object({
     resolved: z.boolean(),
     summary: z.string().trim().min(1).max(2000),
     confirmation: z.string().max(2000),

@@ -10,20 +10,16 @@ export class CallMonitor {
 
     private async verifyText(prompt: string) {
         try {
-            return await this.engine.voice.text(
-                prompt,
-                this.engine.config.ELEVENLABS_VERIFIER_AGENT_ID,
-                20000,
-            );
-        } catch {
+            return await this.engine.text.verify(prompt);
+        } catch (error) {
+            if (this.engine.text.provider === 'gemini') {
+                throw error;
+            }
+
             // A finished voice session may still occupy the provider's concurrency slot.
             await delay(1500);
 
-            return this.engine.voice.text(
-                prompt,
-                this.engine.config.ELEVENLABS_VERIFIER_AGENT_ID,
-                20000,
-            );
+            return this.engine.text.verify(prompt);
         }
     }
 
@@ -139,10 +135,6 @@ export class CallMonitor {
             store.saveCase({ ...c, status: 'verifying', callToken: undefined });
 
             try {
-                if (!this.engine.config.ELEVENLABS_VERIFIER_AGENT_ID) {
-                    throw new Error('Outcome verifier is not configured.');
-                }
-
                 const verdict = await verifyOutcome(
                     (prompt) => this.verifyText(prompt),
                     c,

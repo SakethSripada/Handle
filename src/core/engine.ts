@@ -12,10 +12,12 @@ import twilio from 'twilio';
 import { checkVoiceRoute, voiceNumberId } from '../providers/voice-routing.js';
 import { Telephony } from '../providers/telephony.js';
 import { demoCommand, demoDetails } from './demo.js';
+import { TextAgents } from '../providers/text-agents.js';
 
 export class Engine {
     readonly decisions: Decisions;
     readonly telephony: Telephony;
+    readonly text: TextAgents;
     private queues = new Map<string, Promise<void>>();
 
     constructor(
@@ -25,6 +27,7 @@ export class Engine {
         readonly gmail: Gmail,
     ) {
         this.telephony = new Telephony(config);
+        this.text = new TextAgents(config, voice);
         this.decisions = new Decisions(store, (c, text) =>
             this.notify(c, text),
         );
@@ -295,7 +298,7 @@ export class Engine {
         }
 
         let plan = await planIntake(
-            (p) => this.voice.text(p),
+            (p) => this.text.intake(p),
             c,
             this.store.events(c.id),
             [],
@@ -329,7 +332,7 @@ export class Engine {
                     }
 
                     plan = await planIntake(
-                        (p) => this.voice.text(p),
+                        (p) => this.text.intake(p),
                         { ...c, ...plan },
                         this.store.events(c.id),
                         emails,

@@ -3,6 +3,7 @@ import { request } from './types.js';
 import './credentials.css';
 
 const fields = [
+    ['GEMINI_API_KEY', 'Gemini API key'],
     ['PHOTON_PROJECT_SECRET', 'Photon project secret'],
     ['TWILIO_ACCOUNT_SID', 'Twilio account SID'],
     ['TWILIO_AUTH_TOKEN', 'Twilio auth token'],
