@@ -4,7 +4,9 @@ export class ProviderError extends Error {
         public status: number,
         public detail: string,
     ) {
-        super(`${provider} returned ${status}: ${detail.slice(0, 300)}`);
+        super(
+            `${provider} returned HTTP ${status}. Check the provider connection and account settings.`,
+        );
     }
 }
 

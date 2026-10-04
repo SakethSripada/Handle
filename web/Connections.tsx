@@ -1,3 +1,4 @@
+import { Credentials } from './Credentials.js';
 import { useState } from 'react';
 import { Mail, Radio, ArrowUpRight } from 'lucide-react';
 import { request, type State } from './types.js';
@@ -18,6 +19,7 @@ export function Connections({ state, busy, action, gmail, setState }: Props) {
 
     return (
         <section className="connections">
+            <Credentials />
             <div className="connection-card">
                 <Mail size={30} />
                 <h2>Gmail</h2>

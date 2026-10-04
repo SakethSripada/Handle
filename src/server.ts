@@ -11,6 +11,7 @@ import { Spacetime } from './providers/spacetime.js';
 import { callbacks } from './routes/callbacks.js';
 import { rehearsal } from './routes/rehearsal.js';
 import { api } from './routes/api.js';
+import { settings } from './routes/settings.js';
 import { sessionLogin } from './routes/auth.js';
 
 const config = loadConfig();
@@ -65,6 +66,7 @@ app.post('/api/login', sessionLogin(config, store));
 
 app.use('/api/cases', rehearsal(engine));
 
+app.use('/api/settings', settings(engine));
 app.use('/api', api(engine, photon, spacetime));
 
 app.use('/tools', callback.toolHandler);
