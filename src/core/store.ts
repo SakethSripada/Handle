@@ -99,7 +99,7 @@ export class Store extends EventEmitter {
         kind: CaseEvent['kind'],
         actor: CaseEvent['actor'],
         text: string,
-        id = randomUUID(),
+        id: string = randomUUID(),
     ) {
         const existing = this.get<CaseEvent>('event', id);
 
@@ -138,7 +138,7 @@ export class Store extends EventEmitter {
         );
     }
 
-    enqueue(kind: string, body: unknown, id = randomUUID()) {
+    enqueue(kind: string, body: unknown, id: string = randomUUID()) {
         this.db
             .prepare(
                 'INSERT INTO outbox (id,kind,body) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body',

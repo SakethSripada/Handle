@@ -24,7 +24,7 @@ export class Engine {
         );
     }
 
-    notify(c: Case, text: string, id = randomUUID()) {
+    notify(c: Case, text: string, id: string = randomUUID()) {
         this.store.event(c.id, 'message', 'handle', text, `out:${id}`);
         this.store.enqueue(
             'message',
