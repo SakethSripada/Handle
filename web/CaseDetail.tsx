@@ -51,7 +51,9 @@ export function CaseDetail({
                     </p>
                     <div className="case-facts">
                         <div>
-                            <small>BUSINESS</small>
+                            <small>
+                                {c.mode === 'demo' ? 'PARTICIPANT' : 'BUSINESS'}
+                            </small>
                             <span>{c.business || 'Not provided yet'}</span>
                         </div>
                         <div>
@@ -121,11 +123,13 @@ export function CaseDetail({
                                 </div>
                             </div>
                         ))}
-                    <Rehearsal
-                        caseId={c.id}
-                        onStarted={setSelected}
-                        onError={setError}
-                    />
+                    {c.mode !== 'demo' && (
+                        <Rehearsal
+                            caseId={c.id}
+                            onStarted={setSelected}
+                            onError={setError}
+                        />
+                    )}
                     <div className="tabs">
                         <button
                             className={tab === 'activity' ? 'selected' : ''}
@@ -193,7 +197,7 @@ export function CaseDetail({
                                     </small>
                                 </section>
                             )}
-                            <CallMemory c={c} />
+                            {c.mode !== 'demo' && <CallMemory c={c} />}
                         </div>
                     ) : (
                         <div className="timeline">
@@ -209,7 +213,9 @@ export function CaseDetail({
                                         <div>
                                             <small>
                                                 {e.actor === 'business'
-                                                    ? 'Business'
+                                                    ? c.mode === 'demo'
+                                                        ? 'Participant'
+                                                        : 'Business'
                                                     : e.actor === 'handle'
                                                       ? 'Handle'
                                                       : 'System'}{' '}

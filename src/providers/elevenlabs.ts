@@ -3,6 +3,7 @@ import type { Config } from '../config.js';
 import type { Case } from '../core/model.js';
 import { voiceNumberId } from './voice-routing.js';
 import { jsonRequest } from './http.js';
+import { callVariables } from '../core/demo.js';
 
 export interface Conversation {
     conversation_id: string;
@@ -70,17 +71,7 @@ export class ElevenLabs {
                     ? { call_recording_enabled: false }
                     : {}),
                 conversation_initiation_client_data: {
-                    dynamic_variables: {
-                        case_id: c.id,
-                        secret__case_token: c.callToken,
-                        customer_name: c.customerName,
-                        case_context: JSON.stringify({
-                            goal: c.goal,
-                            business: c.business,
-                            context: c.context,
-                            authorization: c.authorization,
-                        }),
-                    },
+                    dynamic_variables: callVariables(c),
                 },
             },
         );

@@ -22,6 +22,27 @@ export class VoiceTools {
             };
         }
 
+        if (c.mode === 'demo') {
+            if (name === 'get_case_context') {
+                return {
+                    mode: 'demo',
+                    goal: c.goal,
+                    context: c.context,
+                    authorization: c.authorization,
+                    gmailConnected: false,
+                    pastCalls: [],
+                };
+            }
+
+            if (name !== 'report_progress') {
+                return {
+                    allowed: false,
+                    instruction:
+                        'This is a demonstration only. No email, decisions, or business actions are available. Continue chatting, or use end_call when the participant is finished.',
+                };
+            }
+        }
+
         switch (name) {
             case 'get_case_context':
                 return {

@@ -97,6 +97,38 @@ export class CallMonitor {
         c.callMetrics = callMetrics(data);
         store.saveCase({ ...c, callToken: undefined });
 
+        if (c.mode === 'demo') {
+            const stopped = c.stopRequestedAt || c.status === 'cancelled';
+            const replied = data.transcript?.some(
+                (line) => line.role === 'user' && line.message?.trim(),
+            );
+            const completed = data.status === 'done' && replied;
+            const outcome = stopped
+                ? 'The demo call has ended. Your stop request is confirmed.'
+                : completed
+                  ? 'Demo call finished. The conversation transcript is available in Handle.'
+                  : 'The demo ended without a confirmed conversation. Check the transcript before trying again.';
+
+            store.transaction(() => {
+                store.saveCase({
+                    ...c,
+                    status: stopped
+                        ? 'cancelled'
+                        : completed
+                          ? 'completed'
+                          : 'failed',
+                    callToken: undefined,
+                    memoryExcluded: true,
+                    outcome,
+                });
+                store.event(c.id, 'status', 'system', outcome);
+                this.engine.notify(c, outcome, `result:${c.id}`);
+                store.put('call-finalized', data.conversation_id, true);
+            });
+
+            return;
+        }
+
         if (
             c.proposedOutcome &&
             data.status === 'done' &&

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Engine } from '../core/engine.js';
 import { token } from '../core/crypto.js';
 import { auth } from './auth.js';
+import { callVariables } from '../core/demo.js';
 
 export function rehearsal(engine: Engine) {
     const router = Router();
@@ -15,6 +16,12 @@ export function rehearsal(engine: Engine) {
 
         if (!source || !source.goal || !source.customerName) {
             throw new Error('Gather the request details first.');
+        }
+
+        if (source.mode === 'demo') {
+            throw new Error(
+                'Use a customer-service request for a browser rehearsal.',
+            );
         }
 
         if (
@@ -64,17 +71,7 @@ export function rehearsal(engine: Engine) {
         res.json({
             caseId: c.id,
             signedUrl: signed_url,
-            dynamicVariables: {
-                case_id: c.id,
-                secret__case_token: c.callToken,
-                customer_name: c.customerName,
-                case_context: JSON.stringify({
-                    goal: c.goal,
-                    business: c.business,
-                    context: c.context,
-                    authorization: c.authorization,
-                }),
-            },
+            dynamicVariables: callVariables(c),
         });
     });
     router.post('/:id/rehearsal-event', (req, res) => {

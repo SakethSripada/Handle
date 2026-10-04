@@ -11,6 +11,7 @@ import { Gmail } from '../providers/gmail.js';
 import twilio from 'twilio';
 import { checkVoiceRoute, voiceNumberId } from '../providers/voice-routing.js';
 import { Telephony } from '../providers/telephony.js';
+import { demoCommand, demoDetails } from './demo.js';
 
 export class Engine {
     readonly decisions: Decisions;
@@ -105,6 +106,7 @@ export class Engine {
     }
 
     private async process(input: Incoming) {
+        const demo = demoCommand(input.text);
         let c = this.store
             .cases()
             .find(
@@ -132,10 +134,15 @@ export class Engine {
             c = selected;
 
             if (
-                ['resolved', 'failed', 'cancelled', 'follow_up'].includes(
-                    c.status,
-                ) &&
-                !/^status|^connect|^(yes|no) /i.test(input.text)
+                [
+                    'resolved',
+                    'completed',
+                    'failed',
+                    'cancelled',
+                    'follow_up',
+                ].includes(c.status) &&
+                !/^status|^connect|^(yes|no) /i.test(input.text) &&
+                !demo
             ) {
                 this.notify(
                     c,
@@ -153,6 +160,29 @@ export class Engine {
 
         if (previousEvent) {
             c = this.store.case(previousEvent.caseId);
+
+            if (demo && c?.mode === 'demo') {
+                // A restart must not redial a demo whose command was already applied.
+                return;
+            }
+        }
+
+        const live =
+            c &&
+            ['dialing', 'in_call', 'waiting_approval', 'verifying'].includes(
+                c.status,
+            );
+
+        if (
+            !previousEvent &&
+            !live &&
+            (demo?.phone ||
+                (c?.mode === 'demo' &&
+                    !/^(status[?.!]?|stop|stop call|cancel request)$/i.test(
+                        input.text.trim(),
+                    )))
+        ) {
+            c = undefined;
         }
 
         if (!c) {
@@ -175,6 +205,41 @@ export class Engine {
         }
 
         this.store.event(c.id, 'message', 'user', input.text, `in:${input.id}`);
+
+        if (demo) {
+            if (!demo.phone) {
+                this.notify(
+                    c,
+                    'Send Demo call followed by one phone number, including its country code. Ask the participant before calling.',
+                );
+            } else if (live) {
+                this.notify(
+                    c,
+                    'There is already a call in progress. Finish or stop it before starting a demo.',
+                );
+            } else {
+                Object.assign(c, demoDetails(demo.phone));
+                this.store.saveCase(c);
+
+                if (
+                    this.config.CALLING_ENABLED === 'true' &&
+                    voiceNumberId(this.config)
+                ) {
+                    this.notify(
+                        c,
+                        'Your demo is ready. I’ll call the participant now.',
+                    );
+                    await this.start(c.id);
+                } else {
+                    this.notify(
+                        c,
+                        'Your demo is ready. Phone calling is paused; start it from the dashboard after connecting a voice line.',
+                    );
+                }
+            }
+
+            return;
+        }
 
         if (/^(yes|no)\s+[a-f0-9]{6}/i.test(input.text.trim())) {
             try {
@@ -329,6 +394,8 @@ export class Engine {
 
         const provider = this.config.VOICE_PROVIDER;
 
+        this.checkOtherCalls(c);
+
         await checkVoiceRoute(this.config, this.voice, this.telephony, c.phone);
 
         if (
@@ -341,6 +408,8 @@ export class Engine {
         }
 
         const current = this.store.case(id);
+
+        this.checkOtherCalls(c);
 
         if (
             !current ||
@@ -385,6 +454,26 @@ export class Engine {
             this.notify(
                 c,
                 'I couldn’t confirm that the call started. I won’t redial automatically; check the call status first.',
+            );
+        }
+    }
+
+    private checkOtherCalls(c: Case) {
+        if (
+            this.store
+                .cases()
+                .some(
+                    (other) =>
+                        other.id !== c.id &&
+                        other.owner === c.owner &&
+                        other.mode !== 'rehearsal' &&
+                        ['dialing', 'in_call', 'waiting_approval'].includes(
+                            other.status,
+                        ),
+                )
+        ) {
+            throw new Error(
+                'Finish the current call before starting another one.',
             );
         }
     }
