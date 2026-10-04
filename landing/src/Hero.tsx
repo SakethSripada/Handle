@@ -140,9 +140,9 @@ export const Hero: React.FC = () => {
       >
         <motion.div style={{ y: textY, opacity: fade, textAlign: wide ? 'left' : 'center', containerType: 'inline-size' }}>
           <h1 className="display" style={{ fontSize: h1Size, lineHeight: 1.02, fontWeight: 600, letterSpacing: '-0.034em' }}>
-            <BlurWords style={{ whiteSpace: 'nowrap' }} text="Just text it." immediate delay={0.25} />
+            <BlurWords style={{ whiteSpace: wide ? 'nowrap' : 'normal' }} text="Just text it." immediate delay={0.25} />
             <br />
-            <BlurWords style={{ whiteSpace: 'nowrap' }} text="Handle makes the call." className="tone-2" immediate delay={0.45} />
+            <BlurWords style={{ whiteSpace: wide ? 'nowrap' : 'normal' }} text="Handle makes the call." className="tone-2" immediate delay={0.45} />
           </h1>
           <motion.p
             className="lede"
