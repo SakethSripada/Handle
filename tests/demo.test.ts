@@ -342,3 +342,36 @@ test('an enabled voice route starts a demo once from a duplicated text', async (
     assert.equal(store.cases()[0].status, 'dialing');
     assert.equal(store.cases()[0].conversationId, 'demo-start');
 });
+
+test('an unanswered carrier call finalizes even before ElevenLabs has a transcript', async () => {
+    const { engine, store, voice } = setup();
+
+    await engine.accept(input);
+    await engine.idle();
+
+    const c = store.cases()[0];
+
+    await store.saveCase({
+        ...c,
+        status: 'in_call',
+        voiceProvider: 'twilio',
+        callSid: 'unanswered-call',
+        conversationId: 'unanswered-conversation',
+        callToken: 'temporary',
+    });
+    engine.telephony.callStatus = async () => 'no-answer';
+    voice.conversation = async () => {
+        throw new Error('No conversation was established');
+    };
+
+    const monitor = new CallMonitor(engine);
+
+    await monitor.poll();
+    await monitor.poll();
+    assert.equal(store.case(c.id)?.status, 'failed');
+    assert.equal(store.case(c.id)?.callToken, undefined);
+    assert.equal(
+        store.events(c.id).filter((e) => e.id === `out:result:${c.id}`).length,
+        1,
+    );
+});

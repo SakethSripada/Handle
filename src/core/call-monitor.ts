@@ -32,6 +32,34 @@ export class CallMonitor {
                     !this.engine.store.get('call-finalized', c.conversationId),
             )) {
             try {
+                if (
+                    c.voiceProvider === 'twilio' &&
+                    c.callSid &&
+                    ['dialing', 'in_call'].includes(c.status)
+                ) {
+                    const status = await this.engine.telephony
+                        .callStatus(c.callSid)
+                        .catch(() => undefined);
+
+                    if (
+                        status &&
+                        ['busy', 'no-answer', 'failed', 'canceled'].includes(
+                            status,
+                        )
+                    ) {
+                        await this.apply(c.id, {
+                            conversation_id: c.conversationId!,
+                            status: 'failed',
+                            transcript: [],
+                            analysis: {
+                                transcript_summary: `The phone call ended with status ${status}. No conversation was established.`,
+                            },
+                        });
+
+                        continue;
+                    }
+                }
+
                 await this.apply(
                     c.id,
                     await this.engine.voice.conversation(c.conversationId!),

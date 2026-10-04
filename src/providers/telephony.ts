@@ -48,6 +48,12 @@ export class Telephony {
         }
     }
 
+    async callStatus(sid: string) {
+        const call = await this.client().calls(sid).fetch();
+
+        return call.status;
+    }
+
     async validateDestination(destination: string) {
         const phone = normalizePhone(destination);
 
