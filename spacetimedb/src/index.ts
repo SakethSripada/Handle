@@ -158,6 +158,64 @@ export const commitState = db.reducer(
 
             const body = parseChange(change);
 
+            if (change.kind === 'case' && !change.deleted && !importing) {
+                const old =
+                    previous && !previous.deleted
+                        ? JSON.parse(previous.data)
+                        : undefined;
+
+                if (old?.stopRequestedAt && !body.stopRequestedAt) {
+                    throw new SenderError('A stop request cannot be revoked.');
+                }
+
+                if (body.status === 'resolved') {
+                    if (
+                        body.stopRequestedAt ||
+                        !body.confirmation ||
+                        !body.confirmedAt
+                    ) {
+                        throw new SenderError(
+                            'A stopped or unconfirmed call cannot be marked resolved.',
+                        );
+                    }
+
+                    for (const decision of ctx.db.callApproval.iter()) {
+                        if (
+                            !decision.deleted &&
+                            decision.caseId === change.id &&
+                            decision.status === 'pending'
+                        ) {
+                            throw new SenderError(
+                                'A pending decision prevents resolution.',
+                            );
+                        }
+                    }
+                }
+
+                if (body.status === 'dialing' && old?.status !== 'dialing') {
+                    if (old?.status !== 'ready' || body.stopRequestedAt) {
+                        throw new SenderError(
+                            'Only a ready case can begin dialing.',
+                        );
+                    }
+
+                    for (const other of ctx.db.callCase.iter()) {
+                        if (
+                            !other.deleted &&
+                            other.id !== change.id &&
+                            other.owner === body.owner &&
+                            ['dialing', 'in_call', 'waiting_approval'].includes(
+                                other.status,
+                            )
+                        ) {
+                            throw new SenderError(
+                                'Another call is already active for this customer.',
+                            );
+                        }
+                    }
+                }
+            }
+
             if (
                 change.kind === 'event' &&
                 previous &&

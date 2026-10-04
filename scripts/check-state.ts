@@ -107,6 +107,21 @@ try {
         'PASS expired decision rejected and entire transaction rolled back',
     );
 
+    await store.remove('approval', id);
+    await store.saveCase({ ...store.case(id)!, stopRequestedAt: Date.now() });
+    await assert.rejects(() =>
+        store.saveCase({
+            ...store.case(id)!,
+            status: 'resolved',
+            confirmation: 'Fictional reference',
+            confirmedAt: Date.now(),
+        }),
+    );
+    assert.equal(store.case(id)?.status, 'in_call');
+    console.log(
+        'PASS a stopped call cannot be marked resolved by the database',
+    );
+
     const lease = await fetch(
         `${config.SPACETIMEDB_URL}/v1/database/${config.SPACETIMEDB_DATABASE}/call/acquire_writer`,
         {
