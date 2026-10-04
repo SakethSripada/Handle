@@ -12,7 +12,8 @@
     "build": "tsc --noEmit && vite build",
     "check": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "setup:voice": "tsx --env-file=.env scripts/setup-voice.ts"
+    "setup:voice": "tsx --env-file=.env scripts/setup-voice.ts",
+    "doctor": "tsx --env-file=.env scripts/doctor.ts"
   },
   "dependencies": {
     "@elevenlabs/client": "^1.26.0",

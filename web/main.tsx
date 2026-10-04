@@ -81,7 +81,7 @@ function App() {
     async function gmail() {
         const data = await request<{ url: string }>('/gmail/connect', {});
 
-        window.open(data.url, '_blank', 'noopener');
+        window.location.assign(data.url);
     }
 
     if (locked) {
@@ -132,7 +132,9 @@ function App() {
     const active = state.cases.filter((c) =>
         ['dialing', 'in_call', 'waiting_approval'].includes(c.status),
     ).length;
-    const done = state.cases.filter((c) => c.status === 'resolved').length;
+    const done = state.cases.filter(
+        (c) => c.status === 'resolved' && c.mode !== 'rehearsal',
+    ).length;
     const messages = state.events.filter(
         (e) => e.caseId === c?.id && e.kind === 'message',
     );

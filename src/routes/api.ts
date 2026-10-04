@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import type { CaseEvent } from '../core/model.js';
 import type { Engine } from '../core/engine.js';
 import type { Photon } from '../providers/photon.js';
 import type { Spacetime } from '../providers/spacetime.js';
@@ -15,7 +16,7 @@ export function api(engine: Engine, photon: Photon, spacetime: Spacetime) {
     const owner = () => config.ALLOWED_SENDERS.split(',')[0];
     const snapshot = () => ({
         cases: store.cases().map(({ callToken: _, ...c }) => c),
-        events: store.list('event'),
+        events: store.list<CaseEvent>('event').sort((a, b) => a.at - b.at),
         approvals: store.list('approval'),
         owner: owner(),
         services: {
