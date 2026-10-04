@@ -16,14 +16,35 @@ const state = await (await fetch(`${base}/api/state`, { headers })).json();
 
 console.log('Handle is running. Connection status:');
 
-for (const [name, status] of Object.entries(state.services)) {
-    console.log(`  ${name}: ${status}`);
+for (const name of [
+    'photon',
+    'voice',
+    'intake',
+    'calling',
+    'spacetime',
+    'gmail',
+]) {
+    console.log(`  ${name}: ${state.services[name]}`);
 }
 
 const checks = [
     [
         'Dashboard requires authentication',
         await fetch(`${base}/api/state`),
+        401,
+    ],
+    [
+        'Readiness requires authentication',
+        await fetch(`${base}/api/readiness`),
+        401,
+    ],
+    [
+        'Credential changes require authentication',
+        await fetch(`${base}/api/settings/credentials`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+        }),
         401,
     ],
     [
