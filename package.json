@@ -20,7 +20,8 @@
     "format:check": "prettier --check .",
     "setup:phone": "tsx --env-file=.env scripts/setup-phone.ts",
     "lint": "eslint . && stylelint \"web/**/*.css\"",
-    "setup:photon": "tsx --env-file=.env scripts/setup-photon-voice.ts"
+    "setup:photon": "tsx --env-file=.env scripts/setup-photon-voice.ts",
+    "state:generate": "node scripts/generate-state.mjs"
   },
   "dependencies": {
     "@elevenlabs/client": "^1.26.0",
@@ -29,6 +30,7 @@
     "lucide-react": "^1.51.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "spacetimedb": "2.10.2",
     "spectrum-ts": "^12.10.1",
     "twilio": "^6.1.2",
     "ws": "^8.22.0",

@@ -11,6 +11,7 @@ export default [
             'spacetimedb/node_modules/**',
             'spacetimedb/dist/**',
             'landing/**',
+            'src/generated/**',
         ],
     },
     {
