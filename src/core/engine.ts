@@ -208,11 +208,54 @@ export class Engine {
             return;
         }
 
-        const plan = await planIntake(
+        let plan = await planIntake(
             (p) => this.voice.text(p),
             c,
             this.store.events(c.id),
         );
+
+        if (
+            plan.business &&
+            this.gmail.connected(c.owner) &&
+            !this.store.get('mail-searched', c.id)
+        ) {
+            this.store.put('mail-searched', c.id, true);
+
+            try {
+                const business = plan.business.replace(/["\\]/g, '');
+                const emails = await this.gmail.search(
+                    c.owner,
+                    `"${business}" newer_than:1y`,
+                );
+
+                if (emails.length) {
+                    for (const email of emails) {
+                        this.store.event(
+                            c.id,
+                            'email',
+                            'system',
+                            `${email.subject}\nFrom: ${email.from}\n${email.date}`,
+                            `email:${c.id}:${email.id}`,
+                        );
+                    }
+
+                    plan = await planIntake(
+                        (p) => this.voice.text(p),
+                        { ...c, ...plan },
+                        this.store.events(c.id),
+                        emails,
+                    );
+                }
+            } catch {
+                this.store.remove('mail-searched', c.id);
+                this.store.event(
+                    c.id,
+                    'status',
+                    'system',
+                    'Email lookup was unavailable. Continuing with the details you provided.',
+                );
+            }
+        }
 
         Object.assign(c, {
             title: plan.title,

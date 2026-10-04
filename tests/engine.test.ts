@@ -162,3 +162,68 @@ test('a disconnected call is not treated as a successful resolution', () => {
         1,
     );
 });
+
+test('a late approval cannot revive a call that already ended', () => {
+    const { store, engine } = setup();
+    const c = store.saveCase({
+        id: 'closed',
+        owner: '+12025550142',
+        spaceId: 'web:test',
+        title: 'Cancel',
+        status: 'in_call',
+        goal: 'Cancel',
+        business: 'Salon',
+        phone: '+17345550100',
+        customerName: 'Alex',
+        context: 'Tomorrow',
+        authorization: 'No fees',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+    });
+    const decision = engine.decisions.request(c, 'Pay $25?');
+
+    store.saveCase({ ...store.case(c.id)!, status: 'follow_up' });
+    assert.throws(
+        () => engine.decisions.answer(c.owner, `YES ${decision.id}`),
+        /call has ended/,
+    );
+    assert.equal(store.case(c.id)?.status, 'follow_up');
+});
+
+test('post-call transcript does not duplicate a browser transcript', () => {
+    const { store, engine } = setup();
+
+    store.saveCase({
+        id: 'browser',
+        mode: 'rehearsal',
+        owner: '+12025550142',
+        spaceId: 'web:test',
+        title: 'Rehearsal',
+        status: 'resolved',
+        goal: 'Cancel',
+        business: 'Salon',
+        phone: '+17345550100',
+        customerName: 'Alex',
+        context: 'Tomorrow',
+        authorization: 'No fees',
+        conversationId: 'conv-browser',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+    });
+    store.event(
+        'browser',
+        'transcript',
+        'business',
+        'It is cancelled.',
+        'browser:browser:1',
+    );
+    new CallMonitor(engine).apply('browser', {
+        conversation_id: 'conv-browser',
+        status: 'done',
+        transcript: [{ role: 'user', message: 'It is cancelled.' }],
+    });
+    assert.equal(
+        store.events('browser').filter((e) => e.kind === 'transcript').length,
+        1,
+    );
+});

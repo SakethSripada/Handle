@@ -73,6 +73,12 @@ export class Decisions {
             throw new Error('That decision does not belong to you.');
         }
 
+        if (!['in_call', 'waiting_approval', 'dialing'].includes(c.status)) {
+            throw new Error(
+                'This call has ended; that decision can no longer authorize an action.',
+            );
+        }
+
         const current = this.get(c, a.id);
 
         if (current.status !== 'pending') {

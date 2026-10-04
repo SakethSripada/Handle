@@ -34,7 +34,20 @@ export class CallMonitor {
             return;
         }
 
-        for (const [index, line] of (data.transcript ?? []).entries()) {
+        const browserTranscript =
+            c.mode === 'rehearsal' &&
+            store
+                .events(c.id)
+                .some(
+                    (event) =>
+                        event.kind === 'transcript' &&
+                        event.id.startsWith('browser:'),
+                );
+
+        for (const [index, line] of (browserTranscript
+            ? []
+            : (data.transcript ?? [])
+        ).entries()) {
             if (line.message) {
                 store.event(
                     c.id,

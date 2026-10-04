@@ -31,9 +31,11 @@ export async function planIntake(
     textAgent: (prompt: string) => Promise<string>,
     c: Case,
     events: CaseEvent[],
+    evidence: unknown[] = [],
 ): Promise<IntakePlan> {
     const answer = await textAgent(
         JSON.stringify({
+            emailEvidence: evidence,
             existingCase: {
                 goal: c.goal,
                 business: c.business,
