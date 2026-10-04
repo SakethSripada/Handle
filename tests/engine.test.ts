@@ -227,3 +227,60 @@ test('post-call transcript does not duplicate a browser transcript', () => {
         1,
     );
 });
+
+test('Gmail can supply missing evidence without authorizing a new action', async () => {
+    const { store, voice, engine } = setup();
+
+    engine.gmail.connected = () => true;
+    engine.gmail.search = async (_owner, query) => {
+        assert.match(query, /Maple/);
+
+        return [
+            {
+                id: 'receipt',
+                subject: 'Appointment',
+                from: 'salon@example.test',
+                date: 'Tomorrow',
+                body: 'Alex, your appointment is tomorrow at 2pm.',
+                url: 'https://mail.google.com/',
+            },
+        ];
+    };
+
+    const inputs: any[] = [];
+
+    voice.text = async (input) => {
+        const data = JSON.parse(input);
+
+        inputs.push(data);
+
+        return JSON.stringify({
+            title: 'Cancel appointment',
+            goal: 'Cancel',
+            business: 'Maple',
+            phone: '7345550100',
+            customerName: 'Alex',
+            context: data.emailEvidence.length ? 'Tomorrow at 2pm' : '',
+            authorization: 'No fees',
+            ready: !!data.emailEvidence.length,
+            reply: 'What time is the appointment?',
+        });
+    };
+
+    engine.accept({
+        id: 'mail-intake',
+        owner: '+12025550142',
+        spaceId: 'web:test',
+        text: 'Cancel my appointment at Maple. No fees.',
+    });
+    await engine.idle();
+    assert.equal(inputs.length, 2);
+    assert.equal(inputs[1].emailEvidence[0].id, 'receipt');
+    assert.equal(store.cases()[0].status, 'ready');
+    assert.equal(store.cases()[0].authorization, 'No fees');
+    assert.equal(
+        store.events(store.cases()[0].id).filter((e) => e.kind === 'email')
+            .length,
+        1,
+    );
+});
