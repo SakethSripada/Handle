@@ -31,9 +31,11 @@ Handle revokes the agent's authority as soon as a stop request arrives. Every su
 
 Immediate remote hangup has not been verified for this SIP integration. During hold, a stop may wait until the next agent tool check. The dashboard shows **Stop requested** until ElevenLabs reports the call ended. Keep the provider console available during tests; do not interpret the request as a confirmed hangup.
 
-## Twilio fallback
+## Twilio setup
 
 Use a paid Twilio account with an owned voice number. Current trial restrictions block the audio streaming used by the ElevenLabs native integration; recipient verification alone is insufficient.
+
+For the US demo, enable **United States → Low-risk numbers** under Twilio Voice geographic permissions. An upgraded account can still have this disabled. Handle checks it before enabling calls or starting a dial. High-risk destinations do not need to be enabled.
 
 ```sh
 npm run setup:phone
@@ -62,11 +64,21 @@ Demo call +1 202 555 0110
 
 Replace the fictional number with the judge's number. They do not need a Handle account to answer a phone call; the carrier must permit calling that destination without recipient verification.
 
+The upgraded Twilio route does not require judges to verify their number. US calling permissions must be enabled. Let them know the call comes from Handle's separate voice number, then have them answer it normally.
+
 Handle introduces itself as an AI and asks whether it is a good time. The judge can chat, ask about Handle, or try a fictional role-play. This mode cannot read Gmail, retrieve private call history, or request payment approvals. It saves the conversation transcript and sends a completion text. It never marks a customer-service problem resolved.
 
 If calling is paused, the text prepares a request without dialing. Connect the line and choose **Start call** on that request. Enabling calling alone does not dial queued requests. Try this with your own phone before presenting it to a judge.
 
 Keep the server and public tunnel running, and prevent the demo laptop from sleeping. A replacement tunnel needs an updated `PUBLIC_URL` and `npm run setup:voice`, followed by a server restart. `npm run doctor` checks the public endpoint, agent access, messaging connection, delivery queues, and SpacetimeDB parity. Gmail and an unconfigured voice line are shown as waiting; other failed checks need attention before the demo.
+
+After a call, run `npm run check:voice` to inspect the most recent telephone conversation, or append `-- <case-id>` for a particular one. It checks carrier completion, both speakers, the saved transcript, the result notification, and the delivery queue. It never places a call. Carrier and transcript checks cannot replace listening to the audio.
+
+### Validated at MHacks
+
+The first successful telephone demo ran for 44 seconds. The recipient confirmed good audio, ElevenLabs captured both speakers, Handle saved all five transcript turns, and the completion notification left the iMessage delivery queue. The initial attempt exposed disabled US calling permissions; preflight checks now catch that setting.
+
+This validates the judge conversation path. Real customer-service outcomes, fee approvals over a telephone call, and Photon SIP still need their own live tests. Automated tests cover approval ownership, expiry, declined decisions, duplicate messages, and transcript-based outcome verification.
 
 ### Customer-service scenario
 

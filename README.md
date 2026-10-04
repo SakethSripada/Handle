@@ -30,15 +30,15 @@ The example uses fictional details. A request is marked resolved after its outco
 - **Optional Gmail access** to find supporting emails, with read-only permissions.
 - **Browser rehearsals** that use the real voice agent without dialing a phone.
 
-The iMessage round trip and live ElevenLabs rehearsals have been tested. Real telephone audio still needs validation after a voice line is connected. Calling remains paused; Gmail is optional and disconnected. See the [voice setup guide](docs/VOICE.md) for the remaining steps.
+A live iMessage → Twilio → ElevenLabs demo call has been tested with two-way audio, a saved transcript, and a completion text. Gmail is optional and currently disconnected. Photon SIP still needs provider access and a live test. See the [voice setup guide](docs/VOICE.md) for configuration and testing.
 
 ## Try Handle
 
-The hosted demo is currently invite-only; there is no public number to text yet. Making this repository public does not open the running service to new users.
+The running demo is invite-only; there is no public number to text. The dashboard and integration server run locally with a public HTTPS tunnel for callbacks. Making this repository public does not open the running service to new users.
 
 For a local voice demo, create a request in the dashboard and choose **Browser rehearsal**. You play the business representative while Handle handles the request. Try confirming a free cancellation, then introducing a fee to see the approval flow.
 
-Once a voice line is connected, an enrolled user can text `Demo call` followed by a consenting participant's phone number. Handle introduces itself and has a short conversation without asking for reservation details. Demo calls cannot access email or customer history and do not count as resolved customer-service requests. While calling is paused, the command prepares the demo for a manual start from the dashboard.
+An enrolled user can text `Demo call` followed by a consenting participant's phone number. With calling enabled, Handle calls them, introduces itself, and has a short conversation. Demo calls cannot access email or customer history and do not count as resolved customer-service requests. While calling is paused, the command prepares the demo for a manual start from the dashboard.
 
 ## Run locally
 

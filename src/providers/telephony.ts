@@ -36,6 +36,24 @@ export class Telephony {
         };
     }
 
+    async checkUsCalling() {
+        const permissions = await this.client()
+            .voice.v1.dialingPermissions.countries('US')
+            .fetch();
+
+        if (!permissions.lowRiskNumbersEnabled) {
+            throw new Error(
+                'Enable United States low-risk numbers in Twilio Voice geographic permissions before the demo.',
+            );
+        }
+    }
+
+    async callStatus(sid: string) {
+        const call = await this.client().calls(sid).fetch();
+
+        return call.status;
+    }
+
     async validateDestination(destination: string) {
         const phone = normalizePhone(destination);
 

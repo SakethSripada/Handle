@@ -23,7 +23,8 @@
     "setup:photon": "tsx --env-file=.env scripts/setup-photon-voice.ts",
     "state:generate": "node scripts/generate-state.mjs",
     "state:migrate": "tsx --env-file=.env scripts/migrate-state.ts",
-    "check:state": "tsx --env-file=.env scripts/check-state.ts"
+    "check:state": "tsx --env-file=.env scripts/check-state.ts",
+    "check:voice": "tsx --env-file=.env scripts/check-voice.ts"
   },
   "dependencies": {
     "@elevenlabs/client": "^1.26.0",
