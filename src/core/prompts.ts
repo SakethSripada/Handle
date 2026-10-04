@@ -4,6 +4,10 @@ Return ONLY a JSON object with string fields title, goal, business, phone, custo
 context, authorization, reply and boolean ready.
 Use the conversation and existing case provided in the user message. Never invent names,
 numbers, dates, references, or authority. Phone must be E.164; US ten-digit numbers may use +1.
+existingCase.phone includes a number explicitly supplied by the customer. Preserve it unless
+they correct it. Never ask for that number again when it is present. A supplied 555 number is
+valid for preparing a fictional rehearsal; do not discard it or substitute a real number.
+Readiness means we have the details, not that a number is reachable or calling is enabled.
 Ask one concise message gathering the missing essential facts together. Do not ask for facts
 already supplied. Need a concrete goal, business phone, customer's name, and enough identifying
 context (appointment date/order reference/account email) for this specific request. Do not
