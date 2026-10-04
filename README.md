@@ -1,44 +1,82 @@
 # Handle
 
-Text the problem. Handle gathers the details, calls the business, and keeps you posted. It asks about new fees or changed terms; your original request is already authorization to pursue that request.
+A personal customer-service agent you text through iMessage.
 
-## Run
+Tell Handle what you need and which business to call. It gathers the details, talks to the business on your behalf, and sends you the outcome. If a new fee or a change needs your approval, it texts you before agreeing.
 
-Node 24 or newer. From this directory:
+Built at MHacks.
+
+## How it works
+
+1. **Send a request.** Describe the problem and provide the business's phone number.
+2. **Fill in the details.** Handle asks for missing information. With Gmail connected, it can look up relevant receipts and reservations.
+3. **Let Handle call.** The voice agent explains your request and works through the conversation.
+4. **Get an update.** Handle reports the result or asks for a decision when needed.
+
+For example:
+
+> Cancel my nail appointment tomorrow at 2pm at Maple Nail Studio. My name is Alex Demo. Their number is 734-555-0100. Don't agree to a cancellation fee.
+
+The example uses fictional details. A request is marked resolved only when the business confirms completion. Silence never approves a fee.
+
+## What's available
+
+- **iMessage intake** for enrolled users, with conversation history and automatic reconnection.
+- **Voice conversations** through ElevenLabs, with Twilio for outbound telephone calls.
+- **A live dashboard** for requests, activity, transcripts, and approval decisions.
+- **Optional Gmail access** to find supporting emails, with read-only permissions.
+- **Browser rehearsals** that use the real voice agent without dialing a phone.
+
+Live iMessage delivery and telephone calls still need end-to-end validation. The current installation keeps calling paused while phone setup is completed. Gmail is optional and currently disconnected.
+
+## Try Handle
+
+The hosted demo is currently invite-only; there is no public number to text yet. Making this repository public does not open the running service to new users.
+
+For a local voice demo, create a request in the dashboard and choose **Browser rehearsal**. You play the business representative while Handle handles the request. Try confirming a free cancellation, then introducing a fee to see the approval flow.
+
+## Run locally
+
+Requires **Node.js 24 or newer** and credentials for the services you want to use.
 
 ```sh
 npm ci
-cp .env.example .env  # only for a fresh checkout; preserve an existing .env
+cp .env.example .env
+```
+
+Follow the [setup guide](docs/SETUP.md) to configure credentials, the dashboard login, and provider connections. Preserve your existing `.env` if you have already configured Handle.
+
+```sh
 npm run build
 npm start
 ```
 
-Open http://localhost:4327. Sign in with `DASHBOARD_TOKEN` from the local `.env`. Generate that token with `openssl rand -hex 24` and `ENCRYPTION_KEY` with `openssl rand -hex 32` on a fresh checkout. Keep the encryption key: existing Gmail tokens cannot be recovered without it.
+Open [localhost:4327](http://localhost:4327). The **Connections** page checks the services and shows any remaining setup steps.
 
-`npm run format` applies ESLint spacing rules, Stylelint rule separation, and Prettier formatting. Source uses four-space indentation, an 80-column target, and one JSX attribute per line. `npm run check` checks formatting, lint rules, and TypeScript, including unused imports. `npm test` runs the isolated checks. `npm run doctor` checks the running service and its authentication boundaries without making a call.
+## Stack
 
-## Connections
+| Service                  | Role                                                     |
+| ------------------------ | -------------------------------------------------------- |
+| Photon / Spectrum        | Receive and reply to iMessages                           |
+| ElevenLabs               | Plan requests and run voice conversations                |
+| Twilio                   | Place outbound phone calls                               |
+| SpacetimeDB              | Replicate case state and events                          |
+| Gmail OAuth              | Retrieve relevant emails with permission                 |
+| React + Express + SQLite | Dashboard, application server, and durable local storage |
 
-- **ElevenLabs:** set the API key, then `npm run setup:voice`. This creates or updates the intake and voice agents and their six case-scoped tools. Rerun after changing `PUBLIC_URL`. Browser rehearsals use the actual agent and consume ElevenLabs credits.
-- **Gmail:** create a web OAuth client, enable Gmail API, and register `${PUBLIC_URL}/oauth/google/callback`. Add your Google account as a test user while the app is in testing mode. Set the client ID and secret, restart, then connect in the dashboard or text `connect gmail`. Access is read-only. Refresh tokens are encrypted locally. Google testing-mode consent may need renewing after seven days.
-- **SpacetimeDB:** publish `spacetimedb/`, set its database name and the publisher's token. Tables are private; the publisher owns the write reducer. A durable local journal retries replication through the outbox.
-- **Photon:** set the project ID and secret. The local dashboard's **Service credentials** form can save the secret without returning it to the browser. Enroll your phone in the project's shared iMessage line through Photon, then text that line. `ALLOWED_SENDERS` limits who can use this installation. Your enrolled personal number is the customer; the managed Photon line sends Handle's replies. Handle reconnects automatically after interruptions.
-- **Phone calls:** save Twilio credentials in the local dashboard. Run `npm run setup:phone` to check for an owned voice number; this does not purchase or import anything. Once an eligible number exists, `npm run setup:phone -- --connect` imports it into ElevenLabs and assigns Handle's agent. Restart, open **Connections**, and enable calls only after the connection checks pass. Trial accounts can call verified recipients only. The number shown in Twilio's trial demo is not necessarily an owned number available for this integration.
+## Development
 
-**Connections** checks the public endpoint, agents, phone integration, and database against the actual services. An iMessage SDK connection still needs a first incoming text to prove delivery. Gmail is optional: without it, paste the reservation or receipt details into your request.
+```sh
+npm run format  # Apply formatting and spacing rules
+npm run check   # Check formatting, lint rules, and TypeScript
+npm test        # Run isolated tests
+npm run doctor  # Check the running service without placing a call
+```
 
-A public HTTPS endpoint must reach this server for voice tools and Gmail callbacks. A Cloudflare quick tunnel is suitable for a local rehearsal but its URL changes when restarted; update Google redirects and rerun voice setup. This deployment stays online only while the Mac, server, and tunnel are running.
+Application logic lives in `src/core`, integrations in `src/providers`, and the dashboard in `web`. The SpacetimeDB module is in `spacetimedb`.
 
-## Rehearse
+## Privacy
 
-Create a request such as “Cancel my nail appointment tomorrow at 2pm at Maple Nail Studio, 734-555-0100. My name is Alex Demo. No cancellation fee.” Once the details are ready, choose **Browser rehearsal** and allow the microphone. Play the business representative. This uses real voice and real tools without dialing a phone. Rehearsals are labeled and excluded from the handled count.
+Credentials, local case data, and OAuth tokens are excluded from Git. Gmail tokens are encrypted locally. The dashboard requires authentication, and iMessage access is limited to explicitly allowed senders.
 
-Try an uncomplicated cancellation with a reference number. Then try a new $25 fee: Handle should ask in the workspace chat, wait for `YES <code>` or `NO <code>`, and obey the answer. Silence does not authorize payment. The business must confirm completion before Handle reports a resolved request.
-
-## Code
-
-`src/core` owns intake, case transitions, approvals and durable queues. `src/providers` contains the service adapters. `src/routes` contains authenticated dashboard routes and narrowly scoped callbacks. `web` is the React workspace. `spacetimedb` is the deployed database module.
-
-Live telephone milestones arrive through agent tools; the full telephone transcript is fetched after the conversation. Browser rehearsals stream their transcript through the client. An ended call is not treated as success. Provider failures are shown and message/state delivery retries; uncertain call initiation is never automatically redialed.
-
-`.env`, `.data`, and `work` are ignored. `.data` contains private case information and encrypted OAuth tokens. Do not publish it. This is a local, enrolled-user deployment; broad public onboarding, stable hosting, verified OAuth publishing, and real telephone validation are separate launch work.
+Handle is currently designed for a controlled demo. Public onboarding, per-user dashboard access, usage limits, and persistent hosting are required before opening it to everyone.
