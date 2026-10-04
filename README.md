@@ -15,7 +15,7 @@ npm start
 
 Open http://localhost:4327. Sign in with `DASHBOARD_TOKEN` from the local `.env`. Generate that token with `openssl rand -hex 24` and `ENCRYPTION_KEY` with `openssl rand -hex 32` on a fresh checkout. Keep the encryption key: existing Gmail tokens cannot be recovered without it.
 
-`npm test` runs the isolated checks. `npm run doctor` checks the running service and its authentication boundaries without making a call.
+`npm run format` formats the source. `npm run check` checks formatting and TypeScript, including unused imports. `npm test` runs the isolated checks. `npm run doctor` checks the running service and its authentication boundaries without making a call.
 
 ## Connections
 

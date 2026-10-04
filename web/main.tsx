@@ -1,23 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
     ArrowUpRight,
-    ArrowUp,
     Check,
     ChevronRight,
-    Headphones,
     Inbox,
     Link2,
-    Mail,
-    MessageCircle,
     Phone,
     Plus,
-    Radio,
     ShieldCheck,
     Sparkles,
     X,
 } from 'lucide-react';
-import { request, statusLabels, type State, type Case } from './types.js';
+import { request, statusLabels, type State } from './types.js';
 import './style.css';
 import { CaseDetail } from './CaseDetail.js';
 import { Chat } from './Chat.js';

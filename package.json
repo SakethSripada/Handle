@@ -10,10 +10,12 @@
     "dev": "tsx watch --env-file=.env src/server.ts",
     "start": "tsx --env-file=.env src/server.ts",
     "build": "tsc --noEmit && vite build",
-    "check": "tsc --noEmit",
+    "check": "npm run format:check && tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "setup:voice": "tsx --env-file=.env scripts/setup-voice.ts",
-    "doctor": "tsx --env-file=.env scripts/doctor.ts"
+    "doctor": "tsx --env-file=.env scripts/doctor.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@elevenlabs/client": "^1.26.0",
