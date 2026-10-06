@@ -383,3 +383,99 @@ test('an unanswered carrier call finalizes even before ElevenLabs has a transcri
         1,
     );
 });
+
+test('natural stop commands stop existing calls instead of becoming context updates', async () => {
+    for (const text of [
+        'End the call',
+        'End all calls',
+        'Hang up',
+        'Please stop the call now!',
+    ]) {
+        const { engine, store } = setup();
+
+        await engine.accept(input);
+        await engine.idle();
+
+        const c = store.cases()[0];
+
+        await store.saveCase({ ...c, status: 'in_call' });
+
+        const stopped: string[] = [];
+
+        engine.stop = async (id) => {
+            stopped.push(id);
+        };
+
+        await engine.accept({ ...input, id: `stop-${text}`, text });
+        await engine.idle();
+        assert.deepEqual(stopped, [c.id]);
+        assert.equal(store.cases().length, 1);
+        assert.equal(store.case(c.id)?.context, c.context);
+    }
+});
+
+test('end all calls is scoped to the requesting owner', async () => {
+    const { engine, store } = setup();
+
+    await engine.accept(input);
+    await engine.idle();
+
+    const c = store.cases()[0];
+
+    await store.saveCase({ ...c, status: 'in_call' });
+    await store.saveCase({ ...c, id: 'second', status: 'dialing' });
+    await store.saveCase({
+        ...c,
+        id: 'someone-else',
+        owner: '+12025550199',
+        status: 'in_call',
+    });
+
+    const stopped: string[] = [];
+
+    engine.stop = async (id) => {
+        stopped.push(id);
+    };
+
+    await engine.accept({ ...input, id: 'end-all', text: 'End all calls' });
+    await engine.idle();
+    assert.deepEqual(stopped.sort(), [c.id, 'second'].sort());
+});
+
+test('carrier completion releases a stale call while preserving later transcript processing', async () => {
+    const { engine, store, voice } = setup();
+
+    await engine.accept(input);
+    await engine.idle();
+
+    const c = store.cases()[0];
+
+    await store.saveCase({
+        ...c,
+        status: 'dialing',
+        voiceProvider: 'twilio',
+        callSid: 'carrier-call',
+        conversationId: 'delayed-transcript',
+        callToken: 'case-secret',
+    });
+    engine.telephony.callStatus = async () => 'completed';
+    voice.conversation = async () => ({
+        conversation_id: 'delayed-transcript',
+        status: 'in-progress',
+        transcript: [],
+    });
+
+    const monitor = new CallMonitor(engine);
+
+    await monitor.poll();
+    assert.equal(store.case(c.id)?.status, 'follow_up');
+    assert.equal(store.case(c.id)?.callToken, undefined);
+    assert.equal(store.get('call-finalized', 'delayed-transcript'), undefined);
+    await monitor.apply(c.id, {
+        conversation_id: 'delayed-transcript',
+        status: 'done',
+        transcript: [{ role: 'user', message: 'Thanks, goodbye.' }],
+    });
+    assert.equal(store.case(c.id)?.status, 'completed');
+    assert.equal(store.get('call-finalized', 'delayed-transcript'), true);
+});
